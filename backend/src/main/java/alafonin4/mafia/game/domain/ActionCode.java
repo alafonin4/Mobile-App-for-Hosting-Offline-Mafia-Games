@@ -1,0 +1,15 @@
+package alafonin4.mafia.game.domain;
+
+public enum ActionCode {
+    MAFIA_KILL,
+    ROLE_KILL,
+    ALIGNMENT_CHECK,
+    ROLE_CHECK,
+    PROSTITUTE_BLOCK,
+    PROSTITUTE_MUTE_SHIELD,
+    BODYGUARD_PROTECT,
+    FRAME_TARGET,
+    JOURNALIST_ROLE_CHECK,
+    JOURNALIST_VISITOR_REPORT,
+    PLAGUE_DOCTOR_MARK
+}
