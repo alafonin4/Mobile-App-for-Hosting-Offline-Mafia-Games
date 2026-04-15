@@ -15,7 +15,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 
-import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -47,7 +47,7 @@ public class CompletedGameRecord {
     private int dayNumber;
 
     @Column(nullable = false)
-    private Instant finishedAt;
+    private LocalDateTime finishedAt;
 
     @Column(nullable = false)
     private int participantCount;
@@ -117,11 +117,11 @@ public class CompletedGameRecord {
         this.dayNumber = dayNumber;
     }
 
-    public Instant getFinishedAt() {
+    public LocalDateTime getFinishedAt() {
         return finishedAt;
     }
 
-    public void setFinishedAt(Instant finishedAt) {
+    public void setFinishedAt(LocalDateTime finishedAt) {
         this.finishedAt = finishedAt;
     }
 

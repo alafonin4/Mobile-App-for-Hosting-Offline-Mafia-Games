@@ -25,13 +25,11 @@ export function RolePickerModal({
   return (
     <Modal visible={visible} animationType="slide">
       <SafeAreaView style={styles.safeArea}>
-        {/* Заголовок */}
         <View style={styles.header}>
           <Text style={styles.title}>{title}</Text>
           <Button label="Done" onPress={onClose} tone="secondary" />
         </View>
 
-        {/* Контент со скроллом */}
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           {items.map((item) => {
             const count = counts[item.id] ?? 0;

@@ -2,7 +2,7 @@ package alafonin4.mafia.gamehistory.dto;
 
 import alafonin4.mafia.game.domain.WinningTeam;
 
-import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 public record GameHistoryListItemResponse(
@@ -11,7 +11,7 @@ public record GameHistoryListItemResponse(
         String name,
         WinningTeam winner,
         Long winnerUserId,
-        Instant finishedAt,
+        LocalDateTime finishedAt,
         int nightNumber,
         int dayNumber,
         int participantCount

@@ -22,7 +22,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
-import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -46,15 +46,20 @@ public class GameHistoryService {
     }
 
     @Transactional
+    public void persistFinishedGame(GameRoom room) {
+        if (room.getPhase() != GamePhase.FINISHED) {
+            return;
+        }
+        if (completedGameRecordRepository.findByRoomId(room.getId()).isPresent()) {
+            return;
+        }
+        saveSnapshot(room);
+    }
+
+    @Transactional
     public void refreshFinishedGameSnapshots() {
         for (GameRoom room : gameRoomStore.findAll().values()) {
-            if (room.getPhase() != GamePhase.FINISHED) {
-                continue;
-            }
-            if (completedGameRecordRepository.findByRoomId(room.getId()).isPresent()) {
-                continue;
-            }
-            saveSnapshot(room);
+            persistFinishedGame(room);
         }
     }
 
@@ -86,7 +91,7 @@ public class GameHistoryService {
         record.setWinnerUserId(room.getWinnerUserId());
         record.setNightNumber(room.getNightNumber());
         record.setDayNumber(room.getDayNumber());
-        record.setFinishedAt(Instant.now());
+        record.setFinishedAt(LocalDateTime.now());
         record.setParticipantCount(room.getPlayers().size());
         record.setParticipantIds(new HashSet<>(room.getPlayers().keySet()));
         record.setPlayersJson(writeJson(room.getPlayers().values().stream().map(this::toHistoryPlayer).toList()));

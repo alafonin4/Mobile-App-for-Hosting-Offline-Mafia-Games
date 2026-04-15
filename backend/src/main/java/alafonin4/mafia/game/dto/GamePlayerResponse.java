@@ -1,5 +1,6 @@
 package alafonin4.mafia.game.dto;
 
+import alafonin4.mafia.game.domain.Faction;
 import alafonin4.mafia.game.domain.PlayerRole;
 import alafonin4.mafia.game.domain.PlayerStatus;
 import alafonin4.mafia.game.domain.RoleVariant;
@@ -12,6 +13,7 @@ public record GamePlayerResponse(
         PlayerStatus status,
         PlayerRole visibleRole,
         RoleVariant visibleVariant,
+        Faction visibleFaction,
         boolean muted,
         boolean voteImmune
 ) {

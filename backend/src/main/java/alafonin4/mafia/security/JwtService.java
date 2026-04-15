@@ -23,7 +23,7 @@ public class JwtService {
         return Jwts.builder()
                 .subject(user.getEmail())
                 .claim("userId", user.getId())
-                .expiration(new Date(System.currentTimeMillis() + 1000 * 60 * 15))
+                .expiration(new Date(System.currentTimeMillis() + 1000 * 60 * 100))
                 .signWith(key)
                 .compact();
     }

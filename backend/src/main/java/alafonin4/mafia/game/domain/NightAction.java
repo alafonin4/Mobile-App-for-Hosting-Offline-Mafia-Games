@@ -1,6 +1,6 @@
 package alafonin4.mafia.game.domain;
 
-import java.time.Instant;
+import java.time.LocalDateTime;
 
 public record NightAction(
         Long actorId,
@@ -10,6 +10,6 @@ public record NightAction(
         Long targetId,
         NightResolutionPhase resolutionPhase,
         int priority,
-        Instant submittedAt
+        LocalDateTime submittedAt
 ) {
 }

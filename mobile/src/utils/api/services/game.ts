@@ -19,7 +19,7 @@ export function getTownRoles(request: RequestFn) {
 }
 
 export function createRoom(request: RequestFn, input: CreateRoomInput) {
-  return request<GameRoom>('/game/rooms', {
+  return request<GameRoom>('/game/rooms/', {
     method: 'POST',
     body: JSON.stringify(input),
   });

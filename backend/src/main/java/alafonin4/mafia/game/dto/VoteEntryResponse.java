@@ -1,6 +1,6 @@
 package alafonin4.mafia.game.dto;
 
-import java.time.Instant;
+import java.time.LocalDateTime;
 
-public record VoteEntryResponse(Long voterId, Long targetId, Instant submittedAt) {
+public record VoteEntryResponse(Long voterId, Long targetId, LocalDateTime submittedAt) {
 }

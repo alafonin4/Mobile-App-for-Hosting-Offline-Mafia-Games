@@ -25,6 +25,7 @@ public class GameMapper {
     public GameRoomResponse toRoomResponse(GameRoom room, Long viewerId, int requiredNightActions) {
         GamePlayer viewer = room.getPlayers().get(viewerId);
         DayRestriction viewerRestriction = viewer == null ? null : viewer.getDayRestriction();
+        boolean viewerIsHost = viewer != null && viewer.isHost();
         return new GameRoomResponse(
                 room.getId(),
                 room.getName(),
@@ -36,7 +37,7 @@ public class GameMapper {
                 room.getConfiguredRoles().stream().map(this::toRoleSlotResponse).toList(),
                 room.getPlayers().values().stream()
                         .sorted(Comparator.comparing(GamePlayer::getUserId))
-                        .map(player -> toPlayerResponse(player, viewerId, room.getPhase() == GamePhase.FINISHED))
+                        .map(player -> toPlayerResponse(player, viewerId, room.getPhase() == GamePhase.FINISHED, viewerIsHost))
                         .toList(),
                 viewer == null ? null : viewer.getRole(),
                 viewer == null ? null : viewer.getRoleVariant(),
@@ -74,8 +75,8 @@ public class GameMapper {
         );
     }
 
-    private GamePlayerResponse toPlayerResponse(GamePlayer player, Long viewerId, boolean revealAllRoles) {
-        boolean revealRole = revealAllRoles || player.getUserId().equals(viewerId);
+    private GamePlayerResponse toPlayerResponse(GamePlayer player, Long viewerId, boolean revealAllRoles, boolean viewerIsHost) {
+        boolean revealRole = revealAllRoles || viewerIsHost || player.getUserId().equals(viewerId);
         DayRestriction restriction = player.getDayRestriction();
         return new GamePlayerResponse(
                 player.getUserId(),
@@ -85,6 +86,7 @@ public class GameMapper {
                 player.getStatus(),
                 revealRole ? player.getRole() : null,
                 revealRole ? player.getRoleVariant() : null,
+                revealRole ? player.getFaction() : null,
                 restriction != null && restriction.isMuted(),
                 restriction != null && restriction.isVoteImmune()
         );

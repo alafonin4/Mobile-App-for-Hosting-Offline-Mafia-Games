@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { palette } from '@/constants/theme';
 
@@ -6,13 +6,15 @@ export function PlayerCard({
   title,
   subtitle,
   highlight = false,
+  style,
 }: {
   title: string;
   subtitle: string;
   highlight?: boolean;
+  style?: StyleProp<ViewStyle>;
 }) {
   return (
-    <View style={[styles.card, highlight && styles.highlighted]}>
+    <View style={[styles.card, highlight && styles.highlighted, style]}>
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.subtitle}>{subtitle}</Text>
     </View>

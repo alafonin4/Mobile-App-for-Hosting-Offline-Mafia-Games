@@ -26,12 +26,13 @@ import alafonin4.mafia.game.dto.GameRoomResponse;
 import alafonin4.mafia.game.dto.NightActionRequest;
 import alafonin4.mafia.game.dto.RoleSlotRequest;
 import alafonin4.mafia.game.dto.VoteRoundResponse;
+import alafonin4.mafia.gamehistory.service.GameHistoryService;
 import alafonin4.mafia.game.store.GameRoomStore;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
-import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumSet;
@@ -52,12 +53,15 @@ public class GameService {
     private final RoleCatalog roleCatalog;
     private final GameMapper gameMapper;
     private final GameEventPublisher eventPublisher;
+    private final GameHistoryService gameHistoryService;
 
-    public GameService(GameRoomStore roomStore, RoleCatalog roleCatalog, GameMapper gameMapper, GameEventPublisher eventPublisher) {
+    public GameService(GameRoomStore roomStore, RoleCatalog roleCatalog, GameMapper gameMapper,
+                       GameEventPublisher eventPublisher, GameHistoryService gameHistoryService) {
         this.roomStore = roomStore;
         this.roleCatalog = roleCatalog;
         this.gameMapper = gameMapper;
         this.eventPublisher = eventPublisher;
+        this.gameHistoryService = gameHistoryService;
     }
 
     private record KillAttempt(Long targetId, Long actorId, ActionCode actionCode) {
@@ -88,7 +92,7 @@ public class GameService {
             if (room.getPlayers().containsKey(currentUser.getId())) {
                 return gameMapper.toRoomResponse(room, currentUser.getId(), requiredNightActionCount(room));
             }
-            if (room.getPlayers().size() >= room.getConfiguredRoles().size()) {
+            if (room.getPlayers().size() >= room.getConfiguredRoles().size() + 1) {
                 throw new IllegalStateException("Room is already full");
             }
             room.getPlayers().put(currentUser.getId(), new GamePlayer(currentUser.getId(), currentUser.getEmail(), false));
@@ -134,10 +138,14 @@ public class GameService {
             if (!currentUser.getId().equals(room.getHostId())) {
                 throw new IllegalStateException("Only the host can start the game");
             }
-            if (room.getPlayers().size() < 4) {
+            int actualPlayers = (int) room.getPlayers().values().stream()
+                    .filter(player -> !player.getUserId().equals(room.getHostId()))
+                    .count();
+
+            if (actualPlayers < 4) {
                 throw new IllegalStateException("At least 4 players are required");
             }
-            if (room.getPlayers().size() != room.getConfiguredRoles().size()) {
+            if (actualPlayers != room.getConfiguredRoles().size()) {
                 throw new IllegalStateException("The number of players must match configured roles");
             }
             if (room.getPlayers().values().stream().anyMatch(player -> !player.isReady())) {
@@ -155,6 +163,9 @@ public class GameService {
             room.getPlayers().values().forEach(GamePlayer::clearDayRestriction);
 
             for (GamePlayer player : room.getPlayers().values()) {
+                if (player.getUserId().equals(room.getHostId())) {
+                    continue;
+                }
                 eventPublisher.sendPrivateRole(player.getUserId(), Map.of(
                         "roomId", room.getId(),
                         "role", player.getRole(),
@@ -178,7 +189,7 @@ public class GameService {
         GameRoom room = getRoom(roomId);
         synchronized (room) {
             requirePhase(room, GamePhase.NIGHT_ACTIONS);
-            GamePlayer actor = getAlivePlayer(room, currentUser.getId());
+            GamePlayer actor = getAliveParticipant(room, currentUser.getId());
             ActionSlotDefinition slot = findActionSlot(actor, request.actionCode());
             ensureGroupIsFree(room, actor.getUserId(), slot.groupId());
 
@@ -191,7 +202,7 @@ public class GameService {
                     targetId,
                     slot.resolutionPhase(),
                     slot.priority(),
-                    Instant.now()
+                    LocalDateTime.now()
             ));
 
             if (room.getPendingNightActions().size() >= requiredNightActionCount(room)) {
@@ -206,11 +217,11 @@ public class GameService {
         GameRoom room = getRoom(roomId);
         synchronized (room) {
             requirePhase(room, GamePhase.DAY_VOTING);
-            GamePlayer voter = getAlivePlayer(room, currentUser.getId());
+            GamePlayer voter = getAliveParticipant(room, currentUser.getId());
             if (voter.getDayRestriction() != null && voter.getDayRestriction().isMuted()) {
                 throw new IllegalStateException("Muted players cannot vote");
             }
-            GamePlayer target = getAlivePlayer(room, request.targetUserId());
+            GamePlayer target = getAliveParticipant(room, request.targetUserId());
             if (target.getDayRestriction() != null && target.getDayRestriction().isVoteImmune()) {
                 throw new IllegalStateException("This player cannot be voted against this day");
             }
@@ -222,7 +233,7 @@ public class GameService {
                 throw new IllegalStateException("Player has already voted in this round");
             }
 
-            voteRound.addVote(new VoteEntry(voter.getUserId(), target.getUserId(), Instant.now()));
+            voteRound.addVote(new VoteEntry(voter.getUserId(), target.getUserId(), LocalDateTime.now()));
             if (voteRound.getEntries().size() >= eligibleDayVoters(room).size()) {
                 resolveDayVote(room, currentUser.getId());
             }
@@ -279,7 +290,10 @@ public class GameService {
     }
 
     private void assignRoles(GameRoom room) {
-        List<GamePlayer> players = new ArrayList<>(room.getPlayers().values());
+        List<GamePlayer> players = room.getPlayers().values().stream()
+                .filter(player -> !player.getUserId().equals(room.getHostId()))
+                .toList();
+
         List<RoomRoleSlot> slots = new ArrayList<>(room.getConfiguredRoles());
         shuffle(slots);
         for (int index = 0; index < players.size(); index++) {
@@ -428,6 +442,7 @@ public class GameService {
         room.getPendingNightActions().clear();
 
         if (checkWinner(room)) {
+            gameHistoryService.persistFinishedGame(room);
             eventPublisher.broadcast(room.getId(), "GAME_FINISHED", gameMapper.toRoomResponse(room, viewerId, 0));
             return;
         }
@@ -472,6 +487,7 @@ public class GameService {
         eventPublisher.broadcast(room.getId(), "DAY_VOTE_COMPLETED", gameMapper.toVoteRoundResponse(voteRound));
 
         if (checkWinner(room)) {
+            gameHistoryService.persistFinishedGame(room);
             eventPublisher.broadcast(room.getId(), "GAME_FINISHED", gameMapper.toRoomResponse(room, viewerId, 0));
             return;
         }
@@ -538,19 +554,19 @@ public class GameService {
     }
 
     private boolean checkWinner(GameRoom room) {
-        List<GamePlayer> alivePlayers = alivePlayers(room);
-        Optional<GamePlayer> neutralManiac = alivePlayers.stream()
+        List<GamePlayer> aliveParticipants = aliveParticipants(room);
+        Optional<GamePlayer> neutralManiac = aliveParticipants.stream()
                 .filter(player -> player.getRole() == PlayerRole.MANIAC && player.getRoleVariant() == RoleVariant.MANIAC_NEUTRAL)
                 .findFirst();
-        if (neutralManiac.isPresent() && alivePlayers.size() == 2) {
+        if (neutralManiac.isPresent() && aliveParticipants.size() == 2) {
             room.setWinner(WinningTeam.NEUTRAL);
             room.setWinnerUserId(neutralManiac.get().getUserId());
             room.setPhase(GamePhase.FINISHED);
             return true;
         }
 
-        long mafiaAlive = alivePlayers.stream().filter(player -> player.getFaction() == Faction.MAFIA).count();
-        long othersAlive = alivePlayers.size() - mafiaAlive;
+        long mafiaAlive = aliveParticipants.stream().filter(player -> player.getFaction() == Faction.MAFIA).count();
+        long othersAlive = aliveParticipants.size() - mafiaAlive;
         if (mafiaAlive == 0) {
             room.setWinner(WinningTeam.TOWN);
             room.setWinnerUserId(null);
@@ -568,7 +584,7 @@ public class GameService {
 
     private int requiredNightActionCount(GameRoom room) {
         int count = 0;
-        for (GamePlayer player : alivePlayers(room)) {
+        for (GamePlayer player : aliveParticipants(room)) {
             count += player.getActionSlots().stream()
                     .map(ActionSlotDefinition::groupId)
                     .distinct()
@@ -578,13 +594,21 @@ public class GameService {
     }
 
     private List<GamePlayer> eligibleDayVoters(GameRoom room) {
-        return alivePlayers(room).stream()
+        return aliveParticipants(room).stream()
                 .filter(player -> player.getDayRestriction() == null || !player.getDayRestriction().isMuted())
                 .toList();
     }
 
-    private List<GamePlayer> alivePlayers(GameRoom room) {
-        return room.getPlayers().values().stream().filter(GamePlayer::isAlive).toList();
+    private List<GamePlayer> activeParticipants(GameRoom room) {
+        return room.getPlayers().values().stream()
+                .filter(player -> !player.isHost())
+                .toList();
+    }
+
+    private List<GamePlayer> aliveParticipants(GameRoom room) {
+        return activeParticipants(room).stream()
+                .filter(GamePlayer::isAlive)
+                .toList();
     }
 
     private GameRoomResponse broadcastRoomState(GameRoom room, Long viewerId) {
@@ -615,7 +639,7 @@ public class GameService {
         if (slot.targetRule() == TargetRule.OPTIONAL_PLAYER && targetUserId == null) {
             return null;
         }
-        return getAlivePlayer(room, targetUserId).getUserId();
+        return getAliveParticipant(room, targetUserId).getUserId();
     }
 
     private void ensureParticipant(GameRoom room, Long userId) {
@@ -642,11 +666,14 @@ public class GameService {
         return player;
     }
 
-    private GamePlayer getAlivePlayer(GameRoom room, Long userId) {
+    private GamePlayer getAliveParticipant(GameRoom room, Long userId) {
         if (userId == null) {
             throw new IllegalArgumentException("Target user id is required");
         }
         GamePlayer player = getPlayer(room, userId);
+        if (player.isHost()) {
+            throw new IllegalStateException("Host is not an active player");
+        }
         if (player.getStatus() != PlayerStatus.ALIVE) {
             throw new IllegalStateException("Player is eliminated");
         }

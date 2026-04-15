@@ -69,6 +69,7 @@ export type RoomPlayer = {
   status: string;
   visibleRole: PlayerRole | null;
   visibleVariant: RoleVariant | null;
+  visibleFaction: 'TOWN' | 'MAFIA' | 'NEUTRAL' | null;
   muted: boolean;
   voteImmune: boolean;
 };

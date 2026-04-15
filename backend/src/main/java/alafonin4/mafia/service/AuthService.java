@@ -13,7 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 
 @Service
@@ -51,7 +51,7 @@ public class AuthService {
         RefreshToken token = new RefreshToken();
         token.setToken(refreshToken);
         token.setUser(user);
-        token.setExpiryDate(Instant.now().plus(30, ChronoUnit.DAYS));
+        token.setExpiryDate(LocalDateTime.now().plus(30, ChronoUnit.DAYS));
 
         refreshTokenRepository.save(token);
 
@@ -67,7 +67,7 @@ public class AuthService {
         RefreshToken token = refreshTokenRepository.findByToken(requestToken)
                 .orElseThrow(() -> new RuntimeException("Invalid refresh"));
 
-        if (token.getExpiryDate().isBefore(Instant.now())) {
+        if (token.getExpiryDate().isBefore(LocalDateTime.now())) {
             throw new RuntimeException("Expired refresh");
         }
 

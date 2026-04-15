@@ -36,6 +36,8 @@ function RootNavigator() {
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="lobby/[roomId]" options={{ headerShown: false }} />
+        <Stack.Screen name="game/[roomId]" options={{ headerShown: false }} />
+        <Stack.Screen name="history-details/[id]" options={{ headerShown: false }} />
       </Stack>
     </>
   );

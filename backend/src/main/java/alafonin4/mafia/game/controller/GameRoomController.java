@@ -26,7 +26,7 @@ public class GameRoomController {
         this.gameService = gameService;
     }
 
-    @PostMapping
+    @PostMapping("/")
     public ResponseEntity<GameRoomResponse> createRoom(@RequestBody CreateRoomRequest request) {
         return ResponseEntity.ok(gameService.createRoom(request));
     }

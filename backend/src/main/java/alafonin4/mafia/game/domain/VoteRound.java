@@ -1,6 +1,6 @@
 package alafonin4.mafia.game.domain;
 
-import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -12,17 +12,17 @@ public class VoteRound {
     private final UUID id;
     private final VoteRoundType type;
     private final int roundNumber;
-    private final Instant startedAt;
+    private final LocalDateTime startedAt;
     private final Map<Long, VoteEntry> votes;
     private VoteStatus status;
-    private Instant completedAt;
+    private LocalDateTime completedAt;
     private Long eliminatedPlayerId;
 
     public VoteRound(VoteRoundType type, int roundNumber) {
         this.id = UUID.randomUUID();
         this.type = type;
         this.roundNumber = roundNumber;
-        this.startedAt = Instant.now();
+        this.startedAt = LocalDateTime.now();
         this.votes = new LinkedHashMap<>();
         this.status = VoteStatus.ACTIVE;
     }
@@ -39,7 +39,7 @@ public class VoteRound {
         return roundNumber;
     }
 
-    public Instant getStartedAt() {
+    public LocalDateTime getStartedAt() {
         return startedAt;
     }
 
@@ -47,7 +47,7 @@ public class VoteRound {
         return status;
     }
 
-    public Instant getCompletedAt() {
+    public LocalDateTime getCompletedAt() {
         return completedAt;
     }
 
@@ -77,7 +77,7 @@ public class VoteRound {
 
     public void complete(Long eliminatedPlayerId) {
         this.status = VoteStatus.COMPLETED;
-        this.completedAt = Instant.now();
+        this.completedAt = LocalDateTime.now();
         this.eliminatedPlayerId = eliminatedPlayerId;
     }
 }
