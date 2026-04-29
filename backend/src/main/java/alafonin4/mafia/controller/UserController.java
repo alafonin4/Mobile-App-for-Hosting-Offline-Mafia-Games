@@ -2,6 +2,7 @@ package alafonin4.mafia.controller;
 
 import alafonin4.mafia.dto.user.RatingResponse;
 import alafonin4.mafia.dto.user.UserRequest;
+import alafonin4.mafia.dto.user.UserProfileResponse;
 import alafonin4.mafia.dto.user.UserResponse;
 import alafonin4.mafia.dto.user.UserSearchResponse;
 import alafonin4.mafia.service.UserService;
@@ -21,6 +22,11 @@ public class UserController {
     @GetMapping("/users/me")
     public UserResponse getMe() {
         return userService.getCurrentUser();
+    }
+
+    @GetMapping("/users/{id}")
+    public ResponseEntity<UserProfileResponse> getUserProfile(@PathVariable("id") Long userId) {
+        return ResponseEntity.ok(userService.getUserProfile(userId));
     }
 
     @PutMapping("/users/update")

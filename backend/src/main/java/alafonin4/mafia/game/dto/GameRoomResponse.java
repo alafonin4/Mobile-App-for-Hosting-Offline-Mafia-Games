@@ -27,6 +27,8 @@ public record GameRoomResponse(
         boolean currentUserVoteImmune,
         int pendingNightActions,
         int requiredNightActions,
+        List<Long> discussionQueueUserIds,
+        List<Long> invitedUserIds,
         VoteRoundResponse activeVoteRound
 ) {
 }

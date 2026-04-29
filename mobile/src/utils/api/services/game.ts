@@ -29,6 +29,10 @@ export function joinRoom(request: RequestFn, roomId: string) {
   return request<GameRoom>(`/game/rooms/${roomId}/join`, { method: 'POST' });
 }
 
+export function inviteFriendToRoom(request: RequestFn, roomId: string, friendId: number) {
+  return request<GameRoom>(`/game/rooms/${roomId}/invite/${friendId}`, { method: 'POST' });
+}
+
 export function getRoom(request: RequestFn, roomId: string) {
   return request<GameRoom>(`/game/rooms/${roomId}`);
 }
@@ -53,6 +57,22 @@ export function submitDayVote(request: RequestFn, roomId: string, input: DayVote
     method: 'POST',
     body: JSON.stringify(input),
   });
+}
+
+export function startDayDiscussion(request: RequestFn, roomId: string) {
+  return request<GameRoom>(`/game/rooms/${roomId}/phase/day`, { method: 'POST' });
+}
+
+export function startVoting(request: RequestFn, roomId: string) {
+  return request<GameRoom>(`/game/rooms/${roomId}/phase/voting`, { method: 'POST' });
+}
+
+export function startNight(request: RequestFn, roomId: string) {
+  return request<GameRoom>(`/game/rooms/${roomId}/phase/night`, { method: 'POST' });
+}
+
+export function joinDiscussionQueue(request: RequestFn, roomId: string) {
+  return request<GameRoom>(`/game/rooms/${roomId}/discussion-queue`, { method: 'POST' });
 }
 
 export type { CreateRoomInput, DayVoteInput };

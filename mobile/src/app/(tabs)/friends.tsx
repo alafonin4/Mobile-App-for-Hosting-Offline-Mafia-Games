@@ -1,6 +1,7 @@
+import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/button';
 import { FormField } from '@/components/form-field';
@@ -13,7 +14,7 @@ import { type FriendRequest, type UserSearchResult } from '@/utils/api';
 import { useSession } from '@/utils/session';
 
 export default function FriendsScreen() {
-  const { api } = useSession();
+  const { api, session } = useSession();
   const [mode, setMode] = useState<'friends' | 'incoming' | 'outgoing'>('friends');
   const [query, setQuery] = useState('');
   const [friends, setFriends] = useState<FriendRequest[]>([]);
@@ -48,7 +49,7 @@ export default function FriendsScreen() {
 
   async function runSearch() {
     try {
-      setSearchResults(await api.searchUsers(query));
+      setSearchResults(await api.searchUsers(query.trim()));
     } catch (error) {
       Alert.alert('Error', error instanceof Error ? error.message : 'Cannot search users');
     }
@@ -64,21 +65,66 @@ export default function FriendsScreen() {
     }
   }
 
+  async function acceptRequest(requestId: number) {
+    try {
+      await api.acceptFriendRequest(requestId);
+      await loadLists();
+      await runSearch();
+    } catch (error) {
+      Alert.alert('Error', error instanceof Error ? error.message : 'Cannot accept request');
+    }
+  }
+
+  async function rejectRequest(requestId: number) {
+    try {
+      await api.rejectFriendRequest(requestId);
+      await loadLists();
+      await runSearch();
+    } catch (error) {
+      Alert.alert('Error', error instanceof Error ? error.message : 'Cannot reject request');
+    }
+  }
+
+  async function cancelRequest(requestId: number) {
+    try {
+      await api.cancelFriendRequest(requestId);
+      await loadLists();
+      await runSearch();
+    } catch (error) {
+      Alert.alert('Error', error instanceof Error ? error.message : 'Cannot cancel request');
+    }
+  }
+
+  function openUserProfile(userId: number) {
+    if (userId === session.userId) {
+      router.push('/profile');
+      return;
+    }
+
+    router.push(`/users/${userId}` as never);
+  }
+
   const entries =
     mode === 'friends'
-      ? friends.map((item) => ({
+      ? friends.map((item) => {
+        const otherUser = friendPeer(item, session.userId);
+        return {
         id: item.id,
-        title: `${item.senderNickname} / ${item.receiverNickname}`,
-        subtitle: 'Accepted friendship',
-      }))
+        userId: otherUser.id,
+        title: otherUser.nickname,
+        subtitle: otherUser.email,
+      };
+      })
       : mode === 'incoming'
         ? incoming.map((item) => ({
           id: item.id,
+          userId: item.senderId,
           title: item.senderNickname || item.senderEmail,
           subtitle: item.senderEmail,
         }))
         : outgoing.map((item) => ({
           id: item.id,
+          userId: item.receiverId,
           title: item.receiverNickname || item.receiverEmail,
           subtitle: item.receiverEmail,
         }));
@@ -87,21 +133,30 @@ export default function FriendsScreen() {
     <Screen scroll>
       <SectionCard>
         <Text style={styles.title}>Search players</Text>
-        <FormField label="Search" value={query} onChangeText={setQuery} />
+        <FormField
+          label="Search"
+          value={query}
+          onChangeText={setQuery}
+          autoCapitalize="none"
+          autoCorrect={false}
+          onSubmitEditing={() => void runSearch()}
+          placeholder="Nickname or email"
+          returnKeyType="search"
+        />
         <Button label="Find" onPress={() => void runSearch()} />
-        {searchResults.map((user) => (
+        {searchResults.length ? searchResults.map((user) => (
           <View key={user.id} style={styles.searchRow}>
-            <View style={styles.flex}>
+            <Pressable style={styles.flex} onPress={() => openUserProfile(user.id)}>
               <Text style={styles.searchTitle}>{user.nickname}</Text>
               <Text style={styles.searchSubtitle}>{user.email}</Text>
-            </View>
+            </Pressable>
             {user.relation === 'NONE' ? (
               <Button label="Add" tone="secondary" onPress={() => void sendRequest(user.id)} />
             ) : (
               <Text style={styles.status}>{relationLabel(user.relation)}</Text>
             )}
           </View>
-        ))}
+        )) : null}
       </SectionCard>
 
       <SectionCard>
@@ -117,30 +172,50 @@ export default function FriendsScreen() {
         />
         {loading ? (
           <ActivityIndicator color={palette.blue} />
-        ) : (
+        ) : entries.length ? (
           entries.map((item) => (
             <SectionCard key={item.id}>
-              <PlayerCard title={item.title} subtitle={item.subtitle} />
+              <Pressable onPress={() => openUserProfile(item.userId)}>
+                <PlayerCard title={item.title} subtitle={item.subtitle} />
+              </Pressable>
+              {mode === 'friends' ? (
+                <Text style={styles.hint}>Tap the card to open the profile.</Text>
+              ) : null}
               {mode === 'incoming' ? (
                 <View style={styles.actions}>
-                  <Button
-                    label="Accept"
-                    tone="secondary"
-                    onPress={() => void api.acceptFriendRequest(item.id).then(loadLists)}
-                  />
-                  <Button
-                    label="Reject"
-                    tone="secondary"
-                    onPress={() => void api.rejectFriendRequest(item.id).then(loadLists)}
-                  />
+                  <Button label="Accept" tone="secondary" onPress={() => void acceptRequest(item.id)} />
+                  <Button label="Reject" tone="secondary" onPress={() => void rejectRequest(item.id)} />
+                </View>
+              ) : null}
+              {mode === 'outgoing' ? (
+                <View style={styles.actions}>
+                  <Button label="Reject" tone="secondary" onPress={() => void cancelRequest(item.id)} />
                 </View>
               ) : null}
             </SectionCard>
           ))
+        ) : (
+          <Text style={styles.empty}>Nothing here yet.</Text>
         )}
       </SectionCard>
     </Screen>
   );
+}
+
+function friendPeer(item: FriendRequest, currentUserId: number | null) {
+  if (item.senderId === currentUserId) {
+    return {
+      id: item.receiverId,
+      nickname: item.receiverNickname || item.receiverEmail,
+      email: item.receiverEmail,
+    };
+  }
+
+  return {
+    id: item.senderId,
+    nickname: item.senderNickname || item.senderEmail,
+    email: item.senderEmail,
+  };
 }
 
 function relationLabel(relation: UserSearchResult['relation']) {
@@ -194,5 +269,13 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: 'row',
     gap: 8,
+  },
+  hint: {
+    color: palette.muted,
+    fontSize: 12,
+  },
+  empty: {
+    color: palette.muted,
+    fontSize: 14,
   },
 });

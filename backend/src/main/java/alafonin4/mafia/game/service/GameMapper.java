@@ -47,6 +47,8 @@ public class GameMapper {
                 viewerRestriction != null && viewerRestriction.isVoteImmune(),
                 room.getPendingNightActions().size(),
                 requiredNightActions,
+                List.copyOf(room.getDiscussionQueueUserIds()),
+                List.copyOf(room.getInvitedUserIds()),
                 room.getActiveVoteRound() == null ? null : toVoteRoundResponse(room.getActiveVoteRound())
         );
     }

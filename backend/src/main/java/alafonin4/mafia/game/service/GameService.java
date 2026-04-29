@@ -28,6 +28,7 @@ import alafonin4.mafia.game.dto.RoleSlotRequest;
 import alafonin4.mafia.game.dto.VoteRoundResponse;
 import alafonin4.mafia.gamehistory.service.GameHistoryService;
 import alafonin4.mafia.game.store.GameRoomStore;
+import alafonin4.mafia.service.NotificationService;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -54,14 +55,17 @@ public class GameService {
     private final GameMapper gameMapper;
     private final GameEventPublisher eventPublisher;
     private final GameHistoryService gameHistoryService;
+    private final NotificationService notificationService;
 
     public GameService(GameRoomStore roomStore, RoleCatalog roleCatalog, GameMapper gameMapper,
-                       GameEventPublisher eventPublisher, GameHistoryService gameHistoryService) {
+                       GameEventPublisher eventPublisher, GameHistoryService gameHistoryService,
+                       NotificationService notificationService) {
         this.roomStore = roomStore;
         this.roleCatalog = roleCatalog;
         this.gameMapper = gameMapper;
         this.eventPublisher = eventPublisher;
         this.gameHistoryService = gameHistoryService;
+        this.notificationService = notificationService;
     }
 
     private record KillAttempt(Long targetId, Long actorId, ActionCode actionCode) {
@@ -96,6 +100,8 @@ public class GameService {
                 throw new IllegalStateException("Room is already full");
             }
             room.getPlayers().put(currentUser.getId(), new GamePlayer(currentUser.getId(), currentUser.getEmail(), false));
+            room.getInvitedUserIds().remove(currentUser.getId());
+            notificationService.deactivateInviteForRecipient(roomId, currentUser.getId());
             return broadcastRoomState(room, currentUser.getId());
         }
     }
@@ -109,10 +115,11 @@ public class GameService {
                 throw new IllegalStateException("User is not in the room");
             }
             if (currentUser.getId().equals(room.getHostId())) {
+                notificationService.invalidateRoomInvites(roomId);
                 roomStore.delete(roomId);
                 eventPublisher.broadcast(roomId, "ROOM_CLOSED", eventPublisher.simplePayload("Host closed the room"));
                 return new GameRoomResponse(roomId, room.getName(), room.getPhase(), room.getNightNumber(), room.getDayNumber(),
-                        room.getWinner(), room.getWinnerUserId(), List.of(), List.of(), null, null, null, List.of(), false, false, 0, 0, null);
+                        room.getWinner(), room.getWinnerUserId(), List.of(), List.of(), null, null, null, List.of(), false, false, 0, 0, List.of(), List.of(), null);
             }
             room.getPlayers().remove(currentUser.getId());
             return broadcastRoomState(room, currentUser.getId());
@@ -157,10 +164,13 @@ public class GameService {
             room.setNightNumber(1);
             room.setDayNumber(0);
             room.getPendingNightActions().clear();
+            room.getDiscussionQueueUserIds().clear();
+            room.getInvitedUserIds().clear();
             room.setActiveVoteRound(null);
             room.setWinner(WinningTeam.NONE);
             room.setWinnerUserId(null);
             room.getPlayers().values().forEach(GamePlayer::clearDayRestriction);
+            notificationService.invalidateRoomInvites(roomId);
 
             for (GamePlayer player : room.getPlayers().values()) {
                 if (player.getUserId().equals(room.getHostId())) {
@@ -269,6 +279,69 @@ public class GameService {
                     .findFirst()
                     .orElseThrow(() -> new IllegalArgumentException("Vote round not found"));
             return gameMapper.toVoteRoundResponse(round);
+        }
+    }
+
+    public GameRoomResponse startDayDiscussion(UUID roomId) {
+        User currentUser = currentUser();
+        GameRoom room = getRoom(roomId);
+        synchronized (room) {
+            ensureHost(room, currentUser.getId());
+            if (room.getPhase() == GamePhase.FINISHED || room.getPhase() == GamePhase.LOBBY) {
+                throw new IllegalStateException("Cannot switch phase from " + room.getPhase());
+            }
+            if (room.getPhase() == GamePhase.NIGHT_ACTIONS) {
+                resolveNight(room, currentUser.getId());
+                return gameMapper.toRoomResponse(room, currentUser.getId(), requiredNightActionCount(room));
+            }
+
+            room.setPhase(GamePhase.DAY_DISCUSSION);
+            room.setActiveVoteRound(null);
+            room.getDiscussionQueueUserIds().clear();
+            return broadcastRoomState(room, currentUser.getId());
+        }
+    }
+
+    public GameRoomResponse startVoting(UUID roomId) {
+        User currentUser = currentUser();
+        GameRoom room = getRoom(roomId);
+        synchronized (room) {
+            ensureHost(room, currentUser.getId());
+            requirePhase(room, GamePhase.DAY_DISCUSSION);
+            room.setPhase(GamePhase.DAY_VOTING);
+            room.setActiveVoteRound(new VoteRound(VoteRoundType.DAY_ELIMINATION, room.getDayNumber()));
+            return broadcastRoomState(room, currentUser.getId());
+        }
+    }
+
+    public GameRoomResponse startNight(UUID roomId) {
+        User currentUser = currentUser();
+        GameRoom room = getRoom(roomId);
+        synchronized (room) {
+            ensureHost(room, currentUser.getId());
+            if (room.getPhase() == GamePhase.DAY_VOTING && room.getActiveVoteRound() != null) {
+                resolveDayVote(room, currentUser.getId());
+                return gameMapper.toRoomResponse(room, currentUser.getId(), requiredNightActionCount(room));
+            }
+            if (room.getPhase() != GamePhase.DAY_DISCUSSION && room.getPhase() != GamePhase.DAY_VOTING) {
+                throw new IllegalStateException("Cannot switch to night from " + room.getPhase());
+            }
+
+            transitionToNight(room, true);
+            return broadcastRoomState(room, currentUser.getId());
+        }
+    }
+
+    public GameRoomResponse joinDiscussionQueue(UUID roomId) {
+        User currentUser = currentUser();
+        GameRoom room = getRoom(roomId);
+        synchronized (room) {
+            requirePhase(room, GamePhase.DAY_DISCUSSION);
+            GamePlayer player = getAliveParticipant(room, currentUser.getId());
+            if (!room.getDiscussionQueueUserIds().contains(player.getUserId())) {
+                room.getDiscussionQueueUserIds().add(player.getUserId());
+            }
+            return broadcastRoomState(room, currentUser.getId());
         }
     }
 
@@ -448,8 +521,9 @@ public class GameService {
         }
 
         room.setDayNumber(room.getDayNumber() + 1);
-        room.setPhase(GamePhase.DAY_VOTING);
-        room.setActiveVoteRound(new VoteRound(VoteRoundType.DAY_ELIMINATION, room.getDayNumber()));
+        room.setPhase(GamePhase.DAY_DISCUSSION);
+        room.setActiveVoteRound(null);
+        room.getDiscussionQueueUserIds().clear();
         eventPublisher.broadcast(room.getId(), "NIGHT_RESOLVED", Map.of(
                 "nightNumber", room.getNightNumber(),
                 "eliminatedPlayerIds", killTargets
@@ -492,9 +566,7 @@ public class GameService {
             return;
         }
 
-        room.setPhase(GamePhase.NIGHT_ACTIONS);
-        room.setNightNumber(room.getNightNumber() + 1);
-        room.getPendingNightActions().clear();
+        transitionToNight(room, true);
     }
 
     private List<NightAction> actionsForPhase(List<NightAction> actions, NightResolutionPhase phase) {
@@ -654,6 +726,12 @@ public class GameService {
         }
     }
 
+    private void ensureHost(GameRoom room, Long userId) {
+        if (!room.getHostId().equals(userId)) {
+            throw new IllegalStateException("Only the host can change the game phase");
+        }
+    }
+
     private GameRoom getRoom(UUID roomId) {
         return roomStore.findById(roomId).orElseThrow(() -> new IllegalArgumentException("Room not found"));
     }
@@ -678,6 +756,17 @@ public class GameService {
             throw new IllegalStateException("Player is eliminated");
         }
         return player;
+    }
+
+    private void transitionToNight(GameRoom room, boolean incrementNightNumber) {
+        room.setPhase(GamePhase.NIGHT_ACTIONS);
+        if (incrementNightNumber) {
+            room.setNightNumber(room.getNightNumber() + 1);
+        }
+        room.setActiveVoteRound(null);
+        room.getPendingNightActions().clear();
+        room.getDiscussionQueueUserIds().clear();
+        room.getPlayers().values().forEach(GamePlayer::clearDayRestriction);
     }
 
     private User currentUser() {

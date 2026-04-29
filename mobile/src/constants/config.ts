@@ -2,6 +2,7 @@ export const STORAGE_KEYS = {
   accessToken: 'mafia.accessToken',
   refreshToken: 'mafia.refreshToken',
   userId: 'mafia.userId',
+  themeMode: 'mafia.themeMode',
 } as const;
 
 export const TAB_TITLES = {

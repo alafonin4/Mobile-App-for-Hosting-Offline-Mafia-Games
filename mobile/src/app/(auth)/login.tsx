@@ -1,4 +1,4 @@
-import { Link } from 'expo-router';
+import { Link, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -9,11 +9,13 @@ import { loginSchema } from '@/validation/auth';
 import { useSession } from '@/utils/session';
 
 export default function LoginScreen() {
+  const params = useLocalSearchParams<{ roomId?: string }>();
   const { signIn } = useSession();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const roomId = Array.isArray(params.roomId) ? params.roomId[0] : params.roomId;
 
   async function handleLogin() {
     const parsed = loginSchema.safeParse({ email, password });
@@ -42,7 +44,7 @@ export default function LoginScreen() {
         <FormField label="Password" value={password} onChangeText={setPassword} secureTextEntry />
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <Button label={loading ? 'Signing in...' : 'Login'} onPress={() => void handleLogin()} disabled={loading} />
-        <Link href="/register" style={styles.link}>
+        <Link href={roomId ? { pathname: '/register', params: { roomId } } : '/register'} style={styles.link}>
           No account? Register
         </Link>
       </View>

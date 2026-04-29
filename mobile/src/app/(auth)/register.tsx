@@ -1,4 +1,4 @@
-import { Link } from 'expo-router';
+import { Link, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -9,12 +9,14 @@ import { registerSchema } from '@/validation/auth';
 import { useSession } from '@/utils/session';
 
 export default function RegisterScreen() {
+  const params = useLocalSearchParams<{ roomId?: string }>();
   const { signUp } = useSession();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const roomId = Array.isArray(params.roomId) ? params.roomId[0] : params.roomId;
 
   async function handleRegister() {
     const parsed = registerSchema.safeParse({ email, password, confirmPassword });
@@ -44,7 +46,7 @@ export default function RegisterScreen() {
         <FormField label="Confirm password" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry />
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <Button label={loading ? 'Creating...' : 'Register'} onPress={() => void handleRegister()} disabled={loading} />
-        <Link href="/login" style={styles.link}>
+        <Link href={roomId ? { pathname: '/login', params: { roomId } } : '/login'} style={styles.link}>
           Already have an account? Login
         </Link>
       </View>

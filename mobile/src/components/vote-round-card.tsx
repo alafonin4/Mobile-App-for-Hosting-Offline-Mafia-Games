@@ -1,9 +1,29 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 
-import { palette } from '@/constants/theme';
 import { type VoteRound } from '@/utils/api';
+import { useThemedStyles } from '@/theme';
 
 export function VoteRoundCard({ voteRound }: { voteRound: VoteRound }) {
+  const styles = useThemedStyles((colors) => ({
+    card: {
+      backgroundColor: colors.surfaceRaised,
+      borderColor: colors.border,
+      borderRadius: 16,
+      borderWidth: 1,
+      gap: 4,
+      padding: 12,
+    },
+    title: {
+      color: colors.text,
+      fontSize: 15,
+      fontWeight: '700',
+    },
+    subtitle: {
+      color: colors.textMuted,
+      fontSize: 13,
+    },
+  }));
+
   return (
     <View style={styles.card}>
       <Text style={styles.title}>
@@ -18,23 +38,3 @@ export function VoteRoundCard({ voteRound }: { voteRound: VoteRound }) {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  card: {
-    backgroundColor: palette.white,
-    borderColor: palette.border,
-    borderRadius: 16,
-    borderWidth: 1,
-    gap: 4,
-    padding: 12,
-  },
-  title: {
-    color: palette.ink,
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  subtitle: {
-    color: palette.muted,
-    fontSize: 13,
-  },
-});

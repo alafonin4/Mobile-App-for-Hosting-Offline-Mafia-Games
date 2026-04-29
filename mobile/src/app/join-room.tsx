@@ -1,6 +1,6 @@
 import * as Clipboard from 'expo-clipboard';
-import { router } from 'expo-router';
-import { useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Modal, SafeAreaView, StyleSheet, Text, View } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 
@@ -9,24 +9,52 @@ import { FormField } from '@/components/form-field';
 import { Screen } from '@/components/screen';
 import { SectionCard } from '@/components/section-card';
 import { palette } from '@/constants/theme';
+import { extractRoomIdFromInvite } from '@/utils/room-invite';
 import { useSession } from '@/utils/session';
 import { joinRoomSchema } from '@/validation/game';
 
 export default function JoinRoomScreen() {
-  const { api } = useSession();
+  const params = useLocalSearchParams<{ roomId?: string }>();
+  const { api, session } = useSession();
   const [roomId, setRoomId] = useState('');
   const [joining, setJoining] = useState(false);
   const [scannerVisible, setScannerVisible] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
+  const autoJoinedRoomIdRef = useRef<string | null>(null);
+
+  const resolveRoomId = useCallback((value: string) => {
+    return extractRoomIdFromInvite(value) ?? value.trim();
+  }, []);
+
+  const fillRoomId = useCallback((value: string) => {
+    const resolvedRoomId = extractRoomIdFromInvite(value);
+    if (!resolvedRoomId) {
+      return null;
+    }
+
+    setRoomId(resolvedRoomId);
+    return resolvedRoomId;
+  }, []);
 
   async function pasteCode() {
-    setRoomId((await Clipboard.getStringAsync()).trim());
+    const pastedValue = await Clipboard.getStringAsync();
+    const resolvedRoomId = fillRoomId(pastedValue);
+
+    if (!resolvedRoomId) {
+      Alert.alert('Invalid invite', 'Clipboard does not contain a valid room QR/link.');
+    }
   }
 
-  async function joinRoom(value?: string) {
-    const parsed = joinRoomSchema.safeParse({ roomId: (value ?? roomId).trim() });
+  const joinRoom = useCallback(async (value?: string) => {
+    const resolvedRoomId = resolveRoomId(value ?? roomId);
+    const parsed = joinRoomSchema.safeParse({ roomId: resolvedRoomId });
     if (!parsed.success) {
       Alert.alert('Invalid room', parsed.error.issues[0]?.message ?? 'Room code is required');
+      return;
+    }
+
+    if (!session.refreshToken) {
+      Alert.alert('Login required', 'Sign in to join the room from this invite.');
       return;
     }
 
@@ -39,7 +67,7 @@ export default function JoinRoomScreen() {
     } finally {
       setJoining(false);
     }
-  }
+  }, [api, resolveRoomId, roomId, session.refreshToken]);
 
   async function openScanner() {
     if (!permission?.granted) {
@@ -52,6 +80,21 @@ export default function JoinRoomScreen() {
     setScannerVisible(true);
   }
 
+  useEffect(() => {
+    if (!params.roomId) {
+      return;
+    }
+
+    const rawRoomId = Array.isArray(params.roomId) ? params.roomId[0] : params.roomId;
+    const resolvedRoomId = fillRoomId(rawRoomId);
+    if (!resolvedRoomId || !session.refreshToken || autoJoinedRoomIdRef.current === resolvedRoomId) {
+      return;
+    }
+
+    autoJoinedRoomIdRef.current = resolvedRoomId;
+    void joinRoom(resolvedRoomId);
+  }, [fillRoomId, joinRoom, params.roomId, session.refreshToken]);
+
   return (
     <Screen>
       <SectionCard>
@@ -60,6 +103,31 @@ export default function JoinRoomScreen() {
         <Button label={joining ? 'Joining...' : 'Join'} onPress={() => void joinRoom()} disabled={joining} />
         <Button label="Paste from clipboard" tone="secondary" onPress={() => void pasteCode()} />
         <Button label="Scan QR code" tone="secondary" onPress={() => void openScanner()} />
+        {!session.refreshToken ? (
+          <>
+            <Text style={styles.caption}>Login is required to join a room from a QR invite.</Text>
+            <Button
+              label="Open login"
+              tone="secondary"
+              onPress={() =>
+                router.push({
+                  pathname: '/login',
+                  params: roomId ? { roomId } : undefined,
+                })
+              }
+            />
+            <Button
+              label="Open registration"
+              tone="secondary"
+              onPress={() =>
+                router.push({
+                  pathname: '/register',
+                  params: roomId ? { roomId } : undefined,
+                })
+              }
+            />
+          </>
+        ) : null}
       </SectionCard>
 
       <Modal visible={scannerVisible} animationType="slide">
@@ -73,8 +141,12 @@ export default function JoinRoomScreen() {
             barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
             onBarcodeScanned={({ data }) => {
               setScannerVisible(false);
-              setRoomId(data.trim());
-              void joinRoom(data.trim());
+              const resolvedRoomId = fillRoomId(data);
+              if (!resolvedRoomId) {
+                Alert.alert('Invalid QR', 'This QR code does not contain a valid room invite.');
+                return;
+              }
+              void joinRoom(resolvedRoomId);
             }}
           />
         </SafeAreaView>
@@ -102,5 +174,10 @@ const styles = StyleSheet.create({
   camera: {
     flex: 1,
     margin: 16,
+  },
+  caption: {
+    color: palette.muted,
+    fontSize: 13,
+    textAlign: 'center',
   },
 });

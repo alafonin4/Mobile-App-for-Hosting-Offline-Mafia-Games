@@ -1,6 +1,6 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 
-import { palette } from '@/constants/theme';
+import { useThemedStyles } from '@/theme';
 
 type SegmentOption<T extends string> = {
   label: string;
@@ -16,6 +16,30 @@ export function SegmentedControl<T extends string>({
   value: T;
   onChange: (next: T) => void;
 }) {
+  const styles = useThemedStyles((colors) => ({
+    row: {
+      flexDirection: 'row',
+      gap: 8,
+    },
+    segment: {
+      alignItems: 'center',
+      backgroundColor: colors.primarySoft,
+      borderRadius: 999,
+      flex: 1,
+      paddingVertical: 10,
+    },
+    activeSegment: {
+      backgroundColor: colors.primary,
+    },
+    label: {
+      color: colors.primary,
+      fontWeight: '700',
+    },
+    activeLabel: {
+      color: colors.textOnPrimary,
+    },
+  }));
+
   return (
     <View style={styles.row}>
       {options.map((option) => {
@@ -33,27 +57,3 @@ export function SegmentedControl<T extends string>({
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  segment: {
-    alignItems: 'center',
-    backgroundColor: palette.softBlue,
-    borderRadius: 999,
-    flex: 1,
-    paddingVertical: 10,
-  },
-  activeSegment: {
-    backgroundColor: palette.blue,
-  },
-  label: {
-    color: palette.blue,
-    fontWeight: '700',
-  },
-  activeLabel: {
-    color: palette.white,
-  },
-});

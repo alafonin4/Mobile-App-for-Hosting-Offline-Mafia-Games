@@ -6,6 +6,7 @@ import alafonin4.mafia.game.dto.GameRoomResponse;
 import alafonin4.mafia.game.dto.NightActionRequest;
 import alafonin4.mafia.game.dto.VoteRoundResponse;
 import alafonin4.mafia.game.service.GameService;
+import alafonin4.mafia.service.NotificationService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -21,9 +22,11 @@ import java.util.UUID;
 @RequestMapping("/game/rooms")
 public class GameRoomController {
     private final GameService gameService;
+    private final NotificationService notificationService;
 
-    public GameRoomController(GameService gameService) {
+    public GameRoomController(GameService gameService, NotificationService notificationService) {
         this.gameService = gameService;
+        this.notificationService = notificationService;
     }
 
     @PostMapping("/")
@@ -34,6 +37,11 @@ public class GameRoomController {
     @PostMapping("/{roomId}/join")
     public ResponseEntity<GameRoomResponse> joinRoom(@PathVariable UUID roomId) {
         return ResponseEntity.ok(gameService.joinRoom(roomId));
+    }
+
+    @PostMapping("/{roomId}/invite/{friendId}")
+    public ResponseEntity<GameRoomResponse> inviteFriend(@PathVariable UUID roomId, @PathVariable Long friendId) {
+        return ResponseEntity.ok(notificationService.inviteFriendToRoom(roomId, friendId));
     }
 
     @PostMapping("/{roomId}/leave")
@@ -59,6 +67,26 @@ public class GameRoomController {
     @PostMapping("/{roomId}/day-vote")
     public ResponseEntity<GameRoomResponse> submitDayVote(@PathVariable UUID roomId, @RequestBody DayVoteRequest request) {
         return ResponseEntity.ok(gameService.submitDayVote(roomId, request));
+    }
+
+    @PostMapping("/{roomId}/phase/day")
+    public ResponseEntity<GameRoomResponse> startDayDiscussion(@PathVariable UUID roomId) {
+        return ResponseEntity.ok(gameService.startDayDiscussion(roomId));
+    }
+
+    @PostMapping("/{roomId}/phase/voting")
+    public ResponseEntity<GameRoomResponse> startVoting(@PathVariable UUID roomId) {
+        return ResponseEntity.ok(gameService.startVoting(roomId));
+    }
+
+    @PostMapping("/{roomId}/phase/night")
+    public ResponseEntity<GameRoomResponse> startNight(@PathVariable UUID roomId) {
+        return ResponseEntity.ok(gameService.startNight(roomId));
+    }
+
+    @PostMapping("/{roomId}/discussion-queue")
+    public ResponseEntity<GameRoomResponse> joinDiscussionQueue(@PathVariable UUID roomId) {
+        return ResponseEntity.ok(gameService.joinDiscussionQueue(roomId));
     }
 
     @GetMapping("/{roomId}")

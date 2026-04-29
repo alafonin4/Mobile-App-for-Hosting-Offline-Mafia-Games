@@ -36,6 +36,18 @@ public class FriendsController {
         return ResponseEntity.ok(rejectedRequest);
     }
 
+    @PutMapping("/cancel/{id}")
+    public ResponseEntity<FriendRequestResponse> cancelFriendRequest(@PathVariable("id") Long requestId) {
+        FriendRequestResponse canceledRequest = friendRequestService.cancelFriendRequest(requestId);
+        return ResponseEntity.ok(canceledRequest);
+    }
+
+    @DeleteMapping("/with/{userId}")
+    public ResponseEntity<Void> removeFriend(@PathVariable("userId") Long userId) {
+        friendRequestService.removeFriend(userId);
+        return ResponseEntity.noContent().build();
+    }
+
     // Getting all accepted friend requests where user is a receiver or a sender
     @GetMapping("/approved")
     public ResponseEntity<List<FriendRequestResponse>> getApprovedFriendRequests() {

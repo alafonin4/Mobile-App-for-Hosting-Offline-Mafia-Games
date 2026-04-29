@@ -8,6 +8,8 @@ import org.springframework.stereotype.Service;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class GameRoleCatalogService {
@@ -23,6 +25,12 @@ public class GameRoleCatalogService {
                 .filter(item -> item.faction() != Faction.MAFIA)
                 .sorted(Comparator.comparing(RoleCatalogItemResponse::name))
                 .toList();
+    }
+
+    public Set<String> supportedRoleIds() {
+        return catalog().stream()
+                .map(RoleCatalogItemResponse::id)
+                .collect(Collectors.toSet());
     }
 
     private List<RoleCatalogItemResponse> catalog() {

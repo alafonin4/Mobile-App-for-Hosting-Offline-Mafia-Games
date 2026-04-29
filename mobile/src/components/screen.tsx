@@ -1,8 +1,8 @@
 import type { ReactElement, ReactNode } from 'react';
 import type { RefreshControlProps } from 'react-native';
-import { SafeAreaView, ScrollView, StyleSheet, View } from 'react-native';
+import { SafeAreaView, ScrollView, View } from 'react-native';
 
-import { palette } from '@/constants/theme';
+import { useThemedStyles } from '@/theme';
 
 export function Screen({
   children,
@@ -13,6 +13,17 @@ export function Screen({
   scroll?: boolean;
   refreshControl?: ReactElement<RefreshControlProps>;
 }) {
+  const styles = useThemedStyles((colors) => ({
+    safeArea: {
+      backgroundColor: colors.background,
+      flex: 1,
+    },
+    content: {
+      gap: 16,
+      padding: 16,
+    },
+  }));
+
   if (scroll) {
     return (
       <SafeAreaView style={styles.safeArea}>
@@ -29,14 +40,3 @@ export function Screen({
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  safeArea: {
-    backgroundColor: palette.sand,
-    flex: 1,
-  },
-  content: {
-    gap: 16,
-    padding: 16,
-  },
-});

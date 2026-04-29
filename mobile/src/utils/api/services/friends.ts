@@ -27,3 +27,11 @@ export function acceptFriendRequest(request: RequestFn, id: number) {
 export function rejectFriendRequest(request: RequestFn, id: number) {
   return request<FriendRequest>(`/friends/reject/${id}`, { method: 'PUT' });
 }
+
+export function cancelFriendRequest(request: RequestFn, id: number) {
+  return request<FriendRequest>(`/friends/cancel/${id}`, { method: 'PUT' });
+}
+
+export function removeFriend(request: RequestFn, userId: number) {
+  return request<void>(`/friends/with/${userId}`, { method: 'DELETE' });
+}

@@ -4,12 +4,14 @@ import alafonin4.mafia.dto.user.FriendRelation;
 import alafonin4.mafia.dto.user.RatingEntryResponse;
 import alafonin4.mafia.dto.user.RatingResponse;
 import alafonin4.mafia.dto.user.UserRequest;
+import alafonin4.mafia.dto.user.UserProfileResponse;
 import alafonin4.mafia.dto.user.UserResponse;
 import alafonin4.mafia.dto.user.UserSearchResponse;
 import alafonin4.mafia.dto.user.UserSummaryResponse;
 import alafonin4.mafia.entity.FriendRequest;
 import alafonin4.mafia.entity.FriendRequestStatus;
 import alafonin4.mafia.entity.User;
+import alafonin4.mafia.game.service.GameRoleCatalogService;
 import alafonin4.mafia.gamehistory.service.GameHistoryService;
 import alafonin4.mafia.repository.FriendRequestRepository;
 import alafonin4.mafia.repository.UserRepository;
@@ -29,20 +31,38 @@ public class UserService {
     private final UserRepository userRepository;
     private final FriendRequestRepository friendRequestRepository;
     private final GameHistoryService gameHistoryService;
+    private final GameRoleCatalogService roleCatalogService;
 
     public UserResponse getCurrentUser() {
         gameHistoryService.refreshFinishedGameSnapshots();
         return toUserResponse(currentUser());
     }
 
+    public UserProfileResponse getUserProfile(long userId) {
+        gameHistoryService.refreshFinishedGameSnapshots();
+        User viewer = currentUser();
+        User candidate = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+        RelationInfo relationInfo = resolveRelation(viewer, candidate);
+        return toUserProfileResponse(candidate, relationInfo);
+    }
+
     public UserResponse updateInfoAboutCurrentUser(UserRequest userRequest) {
         gameHistoryService.refreshFinishedGameSnapshots();
         User user = currentUser();
+        Set<String> supportedRoleIds = roleCatalogService.supportedRoleIds();
 
         if (userRequest.nickname() != null && !userRequest.nickname().isBlank()) {
             user.setNickname(userRequest.nickname().trim());
         }
         user.setAvatarUrl(normalizeAvatarUrl(userRequest.avatarUrl()));
+        if (userRequest.favoriteRoleIds() != null) {
+            user.setFavoriteRoleIds(normalizePreferredRoles(userRequest.favoriteRoleIds(), supportedRoleIds, "Favorite roles"));
+        }
+        if (userRequest.dislikedRoleIds() != null) {
+            user.setDislikedRoleIds(normalizePreferredRoles(userRequest.dislikedRoleIds(), supportedRoleIds, "Disliked roles"));
+        }
+        ensureNoRoleOverlap(user.getFavoriteRoleIds(), user.getDislikedRoleIds());
 
         return toUserResponse(userRepository.save(user));
     }
@@ -119,25 +139,7 @@ public class UserService {
     }
 
     private UserSearchResponse toSearchResponse(User candidate, User currentUser) {
-        FriendRelation relation = FriendRelation.NONE;
-        Long requestId = null;
-
-        if (candidate.getId().equals(currentUser.getId())) {
-            relation = FriendRelation.SELF;
-        } else {
-            List<FriendRequest> relations = friendRequestRepository.findAllBetweenUsers(currentUser, candidate);
-            if (!relations.isEmpty()) {
-                FriendRequest latest = relations.get(0);
-                requestId = latest.getId();
-                if (latest.getStatus() == FriendRequestStatus.ACCEPTED) {
-                    relation = FriendRelation.FRIEND;
-                } else if (latest.getStatus() == FriendRequestStatus.PENDING) {
-                    relation = latest.getReceiver().getId().equals(currentUser.getId())
-                            ? FriendRelation.INCOMING_REQUEST
-                            : FriendRelation.OUTGOING_REQUEST;
-                }
-            }
-        }
+        RelationInfo relationInfo = resolveRelation(currentUser, candidate);
 
         return new UserSearchResponse(
                 candidate.getId(),
@@ -145,8 +147,8 @@ public class UserService {
                 candidate.getNickname(),
                 candidate.getAvatarUrl(),
                 candidate.getRating(),
-                relation,
-                requestId
+                relationInfo.relation(),
+                relationInfo.requestId()
         );
     }
 
@@ -176,10 +178,80 @@ public class UserService {
                 user.getEmail(),
                 user.getNickname(),
                 user.getAvatarUrl(),
+                List.copyOf(user.getFavoriteRoleIds()),
+                List.copyOf(user.getDislikedRoleIds()),
                 user.getRating(),
                 user.getGamesPlayed(),
                 user.getWins()
         );
+    }
+
+    private UserProfileResponse toUserProfileResponse(User user, RelationInfo relationInfo) {
+        return new UserProfileResponse(
+                user.getId(),
+                user.getEmail(),
+                user.getNickname(),
+                user.getAvatarUrl(),
+                List.copyOf(user.getFavoriteRoleIds()),
+                List.copyOf(user.getDislikedRoleIds()),
+                user.getRating(),
+                user.getGamesPlayed(),
+                user.getWins(),
+                relationInfo.relation(),
+                relationInfo.requestId()
+        );
+    }
+
+    private RelationInfo resolveRelation(User currentUser, User candidate) {
+        if (candidate.getId().equals(currentUser.getId())) {
+            return new RelationInfo(FriendRelation.SELF, null);
+        }
+
+        List<FriendRequest> relations = friendRequestRepository.findAllBetweenUsers(currentUser, candidate);
+        if (relations.isEmpty()) {
+            return new RelationInfo(FriendRelation.NONE, null);
+        }
+
+        FriendRequest latest = relations.get(0);
+        if (latest.getStatus() == FriendRequestStatus.ACCEPTED) {
+            return new RelationInfo(FriendRelation.FRIEND, latest.getId());
+        }
+        if (latest.getStatus() == FriendRequestStatus.PENDING) {
+            FriendRelation relation = latest.getReceiver().getId().equals(currentUser.getId())
+                    ? FriendRelation.INCOMING_REQUEST
+                    : FriendRelation.OUTGOING_REQUEST;
+            return new RelationInfo(relation, latest.getId());
+        }
+
+        return new RelationInfo(FriendRelation.NONE, null);
+    }
+
+    private List<String> normalizePreferredRoles(List<String> roleIds, Set<String> supportedRoleIds, String fieldName) {
+        List<String> normalized = roleIds.stream()
+                .filter(roleId -> roleId != null && !roleId.isBlank())
+                .map(String::trim)
+                .distinct()
+                .toList();
+
+        if (normalized.size() > 3) {
+            throw new IllegalArgumentException(fieldName + " can contain at most 3 roles");
+        }
+
+        for (String roleId : normalized) {
+            if (!supportedRoleIds.contains(roleId)) {
+                throw new IllegalArgumentException("Unknown role id: " + roleId);
+            }
+        }
+
+        return new ArrayList<>(normalized);
+    }
+
+    private void ensureNoRoleOverlap(List<String> favoriteRoleIds, List<String> dislikedRoleIds) {
+        Set<String> favoriteSet = new HashSet<>(favoriteRoleIds);
+        favoriteSet.retainAll(dislikedRoleIds);
+        if (!favoriteSet.isEmpty()) {
+            throw new IllegalArgumentException("Favorite and disliked roles must be different");
+        }
     }
 
     private User currentUser() {
@@ -187,5 +259,8 @@ public class UserService {
                 .getContext()
                 .getAuthentication()
                 .getPrincipal();
+    }
+
+    private record RelationInfo(FriendRelation relation, Long requestId) {
     }
 }

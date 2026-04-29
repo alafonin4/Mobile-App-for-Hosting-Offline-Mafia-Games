@@ -35,6 +35,8 @@ export type RoleSlot = {
   variant: RoleVariant;
 };
 
+export type GamePhase = 'LOBBY' | 'DAY_DISCUSSION' | 'DAY_VOTING' | 'NIGHT_ACTIONS' | 'FINISHED';
+
 export type ActionSlot = {
   slotId: string;
   groupId: string;
@@ -77,7 +79,7 @@ export type RoomPlayer = {
 export type GameRoom = {
   roomId: string;
   name: string;
-  phase: string;
+  phase: GamePhase;
   nightNumber: number;
   dayNumber: number;
   winner: string;
@@ -92,6 +94,8 @@ export type GameRoom = {
   currentUserVoteImmune: boolean;
   pendingNightActions: number;
   requiredNightActions: number;
+  discussionQueueUserIds: number[];
+  invitedUserIds: number[];
   activeVoteRound: VoteRound | null;
 };
 

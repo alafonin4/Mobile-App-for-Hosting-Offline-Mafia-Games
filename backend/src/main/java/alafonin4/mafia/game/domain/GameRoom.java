@@ -15,6 +15,8 @@ public class GameRoom {
     private final Map<Long, GamePlayer> players;
     private final List<NightAction> pendingNightActions;
     private final List<VoteRound> voteHistory;
+    private final List<Long> discussionQueueUserIds;
+    private final List<Long> invitedUserIds;
     private GamePhase phase;
     private VoteRound activeVoteRound;
     private int nightNumber;
@@ -30,6 +32,8 @@ public class GameRoom {
         this.players = new LinkedHashMap<>();
         this.pendingNightActions = new ArrayList<>();
         this.voteHistory = new ArrayList<>();
+        this.discussionQueueUserIds = new ArrayList<>();
+        this.invitedUserIds = new ArrayList<>();
         this.phase = GamePhase.LOBBY;
         this.winner = WinningTeam.NONE;
     }
@@ -60,6 +64,14 @@ public class GameRoom {
 
     public List<VoteRound> getVoteHistory() {
         return Collections.unmodifiableList(voteHistory);
+    }
+
+    public List<Long> getDiscussionQueueUserIds() {
+        return discussionQueueUserIds;
+    }
+
+    public List<Long> getInvitedUserIds() {
+        return invitedUserIds;
     }
 
     public void addVoteRoundToHistory(VoteRound voteRound) {

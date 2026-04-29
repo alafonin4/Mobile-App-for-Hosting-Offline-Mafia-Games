@@ -4,9 +4,11 @@ import { ApiError } from './errors';
 import { login, logout, refresh, register } from './services/auth';
 import {
   acceptFriendRequest,
+  cancelFriendRequest,
   getFriends,
   getIncomingRequests,
   getOutgoingRequests,
+  removeFriend,
   rejectFriendRequest,
   sendFriendRequest,
 } from './services/friends';
@@ -15,8 +17,13 @@ import {
   getMafiaRoles,
   getRoom,
   getTownRoles,
+  inviteFriendToRoom,
+  joinDiscussionQueue,
   joinRoom,
+  startDayDiscussion,
   startGame,
+  startNight,
+  startVoting,
   submitDayVote,
   submitNightAction,
   toggleReady,
@@ -24,8 +31,13 @@ import {
   type DayVoteInput,
 } from './services/game';
 import { getHistory, getHistoryDetails } from './services/history';
+import {
+  getNotifications,
+  joinGameFromNotification,
+  markAllNotificationsRead,
+} from './services/notifications';
 import { getRating } from './services/rating';
-import { getMe, searchUsers, updateProfile, type UpdateProfileInput } from './services/users';
+import { getMe, getUserProfile, searchUsers, updateProfile, type UpdateProfileInput } from './services/users';
 import type { AuthResponse } from './types/auth';
 import type { NightActionInput } from './types/game';
 import type { RatingScope } from './types/rating';
@@ -78,6 +90,10 @@ export class ApiClient {
     return getMe(this.request);
   }
 
+  getUserProfile(userId: number) {
+    return getUserProfile(this.request, userId);
+  }
+
   updateProfile(input: UpdateProfileInput) {
     return updateProfile(this.request, input);
   }
@@ -114,6 +130,14 @@ export class ApiClient {
     return rejectFriendRequest(this.request, id);
   }
 
+  cancelFriendRequest(id: number) {
+    return cancelFriendRequest(this.request, id);
+  }
+
+  removeFriend(userId: number) {
+    return removeFriend(this.request, userId);
+  }
+
   getMafiaRoles() {
     return getMafiaRoles(this.request);
   }
@@ -128,6 +152,10 @@ export class ApiClient {
 
   joinRoom(roomId: string) {
     return joinRoom(this.request, roomId);
+  }
+
+  inviteFriendToRoom(roomId: string, friendId: number) {
+    return inviteFriendToRoom(this.request, roomId, friendId);
   }
 
   getRoom(roomId: string) {
@@ -148,6 +176,34 @@ export class ApiClient {
 
   submitDayVote(roomId: string, input: DayVoteInput) {
     return submitDayVote(this.request, roomId, input);
+  }
+
+  startDayDiscussion(roomId: string) {
+    return startDayDiscussion(this.request, roomId);
+  }
+
+  startVoting(roomId: string) {
+    return startVoting(this.request, roomId);
+  }
+
+  startNight(roomId: string) {
+    return startNight(this.request, roomId);
+  }
+
+  joinDiscussionQueue(roomId: string) {
+    return joinDiscussionQueue(this.request, roomId);
+  }
+
+  getNotifications() {
+    return getNotifications(this.request);
+  }
+
+  markAllNotificationsRead() {
+    return markAllNotificationsRead(this.request);
+  }
+
+  joinGameFromNotification(notificationId: number) {
+    return joinGameFromNotification(this.request, notificationId);
   }
 
   getHistory() {

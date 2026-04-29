@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import * as SecureStore from 'expo-secure-store';
-import { Redirect, useSegments } from 'expo-router';
+import { Redirect, useGlobalSearchParams, usePathname, useSegments } from 'expo-router';
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 
 import { STORAGE_KEYS } from '@/constants/config';
@@ -134,21 +134,36 @@ export function useSession() {
 
 export function RouteGuard() {
   const segments = useSegments();
+  const pathname = usePathname();
+  const params = useGlobalSearchParams<{ roomId?: string }>();
   const { session, loading } = useSession();
   const firstSegment = segments[0];
   const inAuthGroup = firstSegment === '(auth)';
+  const inviteRoomId = getFirstParam(params.roomId);
 
   if (loading) {
     return null;
   }
 
-  if (!session.refreshToken && !inAuthGroup) {
+  if (!session.refreshToken && !inAuthGroup && pathname !== '/join-room') {
     return <Redirect href="/login" />;
   }
 
   if (session.refreshToken && inAuthGroup) {
+    if (inviteRoomId) {
+      return <Redirect href={{ pathname: '/join-room', params: { roomId: inviteRoomId } }} />;
+    }
+
     return <Redirect href="/games" />;
   }
 
   return null;
+}
+
+function getFirstParam(value: string | string[] | undefined) {
+  if (Array.isArray(value)) {
+    return value[0];
+  }
+
+  return value;
 }

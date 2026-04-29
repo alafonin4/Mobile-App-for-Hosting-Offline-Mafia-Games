@@ -9,9 +9,16 @@ import { PlayerCard } from '@/components/player-card';
 import { Screen } from '@/components/screen';
 import { SectionCard } from '@/components/section-card';
 import { palette } from '@/constants/theme';
-import { type GameRoom } from '@/utils/api';
+import { type FriendRequest, type GameRoom } from '@/utils/api';
 import { useGameEvents } from '@/utils/game-socket';
+import { buildRoomInviteUrl } from '@/utils/room-invite';
 import { useSession } from '@/utils/session';
+
+type LobbyFriend = {
+  id: number;
+  title: string;
+  subtitle: string;
+};
 
 export default function LobbyScreen() {
   const { roomId } = useLocalSearchParams<{ roomId: string }>();
@@ -20,6 +27,9 @@ export default function LobbyScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [qrVisible, setQrVisible] = useState(false);
+  const [inviteVisible, setInviteVisible] = useState(false);
+  const [friends, setFriends] = useState<LobbyFriend[]>([]);
+  const [inviteLoading, setInviteLoading] = useState(false);
 
   const loadRoom = useCallback(async () => {
     if (!roomId) {
@@ -53,6 +63,24 @@ export default function LobbyScreen() {
     }
   }, [room]);
 
+  const loadFriends = useCallback(async () => {
+    try {
+      setInviteLoading(true);
+      const relations = await api.getFriends();
+      setFriends(mapFriends(relations, session.userId));
+    } catch (error) {
+      Alert.alert('Error', error instanceof Error ? error.message : 'Cannot load friends');
+    } finally {
+      setInviteLoading(false);
+    }
+  }, [api, session.userId]);
+
+  useEffect(() => {
+    if (inviteVisible) {
+      void loadFriends();
+    }
+  }, [inviteVisible, loadFriends]);
+
   if (loading || !room) {
     return (
       <Screen>
@@ -63,6 +91,7 @@ export default function LobbyScreen() {
 
   const currentPlayer = room.players.find((player) => player.userId === session.userId);
   const isHost = Boolean(currentPlayer?.host);
+  const inviteUrl = buildRoomInviteUrl(room.roomId);
 
   return (
     <Screen
@@ -85,7 +114,11 @@ export default function LobbyScreen() {
           Players: {room.players.length}/{room.configuredRoles.length}
         </Text>
         <Button label="Copy room ID" onPress={() => void Clipboard.setStringAsync(room.roomId)} />
+        <Button label="Copy invite link" tone="secondary" onPress={() => void Clipboard.setStringAsync(inviteUrl)} />
         <Button label="Show QR code" tone="secondary" onPress={() => setQrVisible(true)} />
+        {isHost ? (
+          <Button label="Invite" tone="secondary" onPress={() => setInviteVisible(true)} />
+        ) : null}
       </SectionCard>
 
       <SectionCard>
@@ -107,14 +140,64 @@ export default function LobbyScreen() {
         <View style={styles.overlay}>
           <View style={styles.qrCard}>
             <Text style={styles.title}>Room QR</Text>
-            <QRCode value={room.roomId} size={220} />
+            <QRCode value={inviteUrl} size={220} />
+            <Text style={styles.caption}>Scan with the Mafia Mobile app or your phone camera.</Text>
             <Text style={styles.caption}>{room.roomId}</Text>
             <Button label="Close" tone="secondary" onPress={() => setQrVisible(false)} />
           </View>
         </View>
       </Modal>
+
+      <Modal visible={inviteVisible} transparent animationType="fade">
+        <View style={styles.overlay}>
+          <View style={styles.inviteCard}>
+            <Text style={styles.title}>Invite friends</Text>
+            {inviteLoading ? (
+              <ActivityIndicator color={palette.blue} />
+            ) : friends.length ? (
+              friends.map((friend) => {
+                const inLobby = room.players.some((player) => player.userId === friend.id);
+                const invited = room.invitedUserIds.includes(friend.id);
+                return (
+                  <View key={friend.id} style={styles.inviteRow}>
+                    <View style={styles.inviteTextWrap}>
+                      <Text style={styles.inviteTitle}>{friend.title}</Text>
+                      <Text style={styles.caption}>{friend.subtitle}</Text>
+                    </View>
+                    {inLobby ? (
+                      <Text style={styles.sentLabel}>In lobby</Text>
+                    ) : invited ? (
+                      <Text style={styles.sentLabel}>Sent</Text>
+                    ) : (
+                      <Button
+                        label="Invite"
+                        tone="secondary"
+                        onPress={() => void api.inviteFriendToRoom(room.roomId, friend.id).then(setRoom)}
+                      />
+                    )}
+                  </View>
+                );
+              })
+            ) : (
+              <Text style={styles.caption}>No approved friends yet.</Text>
+            )}
+            <Button label="Close" tone="secondary" onPress={() => setInviteVisible(false)} />
+          </View>
+        </View>
+      </Modal>
     </Screen>
   );
+}
+
+function mapFriends(items: FriendRequest[], currentUserId: number | null) {
+  return items.map((item) => {
+    const isSender = item.senderId === currentUserId;
+    return {
+      id: isSender ? item.receiverId : item.senderId,
+      title: isSender ? item.receiverNickname || item.receiverEmail : item.senderNickname || item.senderEmail,
+      subtitle: isSender ? item.receiverEmail : item.senderEmail,
+    };
+  });
 }
 
 const styles = StyleSheet.create({
@@ -142,9 +225,37 @@ const styles = StyleSheet.create({
     padding: 24,
     width: '100%',
   },
+  inviteCard: {
+    backgroundColor: palette.white,
+    borderRadius: 24,
+    gap: 16,
+    maxHeight: '80%',
+    padding: 24,
+    width: '100%',
+  },
+  inviteRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 12,
+    justifyContent: 'space-between',
+  },
+  inviteTextWrap: {
+    flex: 1,
+    gap: 4,
+  },
+  inviteTitle: {
+    color: palette.ink,
+    fontSize: 15,
+    fontWeight: '700',
+  },
   caption: {
     color: palette.muted,
     fontSize: 13,
     textAlign: 'center',
+  },
+  sentLabel: {
+    color: palette.mint,
+    fontSize: 14,
+    fontWeight: '700',
   },
 });

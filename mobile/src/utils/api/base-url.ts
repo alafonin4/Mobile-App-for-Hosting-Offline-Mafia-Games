@@ -1,6 +1,6 @@
 import Constants from 'expo-constants';
 
-const DEFAULT_API_BASE_URL = 'http://localhost:8080';
+const DEFAULT_API_BASE_URL = 'http://10.110.84.14:8080';
 const LOCAL_HOST_PATTERN = /^(localhost|127\.0\.0\.1|0\.0\.0\.0)$/i;
 const ENV_PLACEHOLDER_PATTERN = /^\$\{.+\}$/;
 

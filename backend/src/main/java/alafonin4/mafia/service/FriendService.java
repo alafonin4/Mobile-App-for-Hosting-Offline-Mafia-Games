@@ -18,6 +18,7 @@ import java.util.List;
 public class FriendService {
     private final UserRepository userRepository;
     private final FriendRequestRepository friendRequestRepository;
+    private final NotificationService notificationService;
 
     public FriendRequestResponse sendFriendRequestToUser(long receiverId) {
         User sender = currentUser();
@@ -36,14 +37,18 @@ public class FriendService {
                 .status(FriendRequestStatus.PENDING)
                 .build();
 
-        return toResponse(friendRequestRepository.save(friendRequest));
+        FriendRequest saved = friendRequestRepository.save(friendRequest);
+        notificationService.createFriendRequestReceivedNotification(saved);
+        return toResponse(saved);
     }
 
     public FriendRequestResponse acceptFriendRequest(long requestId) {
         User receiver = currentUser();
         FriendRequest friendRequest = getPendingRequestForReceiver(requestId, receiver);
         friendRequest.setStatus(FriendRequestStatus.ACCEPTED);
-        return toResponse(friendRequestRepository.save(friendRequest));
+        FriendRequest saved = friendRequestRepository.save(friendRequest);
+        notificationService.createFriendRequestAcceptedNotification(saved);
+        return toResponse(saved);
     }
 
     public List<FriendRequestResponse> sentListOfFriends() {
@@ -59,6 +64,31 @@ public class FriendService {
         FriendRequest friendRequest = getPendingRequestForReceiver(requestId, receiver);
         friendRequest.setStatus(FriendRequestStatus.REJECTED);
         return toResponse(friendRequestRepository.save(friendRequest));
+    }
+
+    public FriendRequestResponse cancelFriendRequest(Long requestId) {
+        User sender = currentUser();
+        FriendRequest friendRequest = getPendingRequestForSender(requestId, sender);
+        friendRequest.setStatus(FriendRequestStatus.CANCELED);
+        return toResponse(friendRequestRepository.save(friendRequest));
+    }
+
+    public void removeFriend(Long userId) {
+        User currentUser = currentUser();
+        User otherUser = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        if (currentUser.getId().equals(otherUser.getId())) {
+            throw new IllegalArgumentException("You cannot remove yourself from friends");
+        }
+
+        FriendRequest friendship = friendRequestRepository.findAllBetweenUsers(currentUser, otherUser).stream()
+                .filter(request -> request.getStatus() == FriendRequestStatus.ACCEPTED)
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("Users are not friends"));
+
+        friendship.setStatus(FriendRequestStatus.CANCELED);
+        friendRequestRepository.save(friendship);
     }
 
     public List<FriendRequestResponse> getPendingSentRequests() {
@@ -95,6 +125,19 @@ public class FriendService {
         }
         if (friendRequest.getStatus() != FriendRequestStatus.PENDING) {
             throw new IllegalStateException("Only pending friend requests can be processed");
+        }
+        return friendRequest;
+    }
+
+    private FriendRequest getPendingRequestForSender(Long requestId, User sender) {
+        FriendRequest friendRequest = friendRequestRepository.findById(requestId)
+                .orElseThrow(() -> new IllegalArgumentException("Friend request not found"));
+
+        if (!friendRequest.getSender().getId().equals(sender.getId())) {
+            throw new IllegalStateException("Only the sender can cancel this friend request");
+        }
+        if (friendRequest.getStatus() != FriendRequestStatus.PENDING) {
+            throw new IllegalStateException("Only pending friend requests can be canceled");
         }
         return friendRequest;
     }

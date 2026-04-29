@@ -136,10 +136,18 @@ class GameServiceTest {
         GameRoomResponse afterNight = gameService.submitNightAction(roomId, new NightActionRequest(citizen.getId(), ActionCode.MAFIA_KILL));
 
         GamePlayerResponse citizenView = playerView(afterNight, citizen.getId());
-        assertEquals(GamePhase.DAY_VOTING, afterNight.phase());
+        assertEquals(GamePhase.DAY_DISCUSSION, afterNight.phase());
         assertEquals(PlayerStatus.ALIVE, citizenView.status());
         assertFalse(citizenView.muted());
         assertFalse(citizenView.voteImmune());
+
+        setCurrentUser(citizen);
+        GameRoomResponse afterQueue = gameService.joinDiscussionQueue(roomId);
+        assertTrue(afterQueue.discussionQueueUserIds().contains(citizen.getId()));
+
+        setCurrentUser(host);
+        GameRoomResponse votingStarted = gameService.startVoting(roomId);
+        assertEquals(GamePhase.DAY_VOTING, votingStarted.phase());
 
         setCurrentUser(host);
         assertThrows(IllegalStateException.class,
