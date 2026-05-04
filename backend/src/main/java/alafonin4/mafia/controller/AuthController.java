@@ -2,9 +2,9 @@ package alafonin4.mafia.controller;
 
 import alafonin4.mafia.dto.auth.AuthResponse;
 import alafonin4.mafia.dto.auth.LoginRequest;
+import alafonin4.mafia.dto.auth.LogoutRequest;
 import alafonin4.mafia.dto.auth.RegisterRequest;
 import alafonin4.mafia.service.AuthService;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -36,13 +36,7 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public void logout(HttpServletRequest request) {
-
-        String header = request.getHeader("Authorization");
-
-        if (header != null && header.startsWith("Bearer ")) {
-            String refreshToken = header.substring(7);
-            authService.logout(refreshToken);
-        }
+    public void logout(@RequestBody(required = false) LogoutRequest request) {
+        authService.logout(request != null ? request.refreshToken : null);
     }
 }

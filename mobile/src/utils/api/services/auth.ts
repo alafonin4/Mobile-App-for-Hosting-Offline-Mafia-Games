@@ -31,9 +31,7 @@ export function logout(request: RequestFn, refreshToken: string) {
     '/auth/logout',
     {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${refreshToken}`,
-      },
+      body: JSON.stringify({ refreshToken }),
     },
     { skipAuth: true },
   );

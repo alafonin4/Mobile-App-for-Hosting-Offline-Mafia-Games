@@ -9,6 +9,7 @@ import alafonin4.mafia.repository.RefreshTokenRepository;
 import alafonin4.mafia.repository.UserRepository;
 import alafonin4.mafia.security.JwtService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -18,6 +19,7 @@ import java.time.temporal.ChronoUnit;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AuthService {
 
     @Autowired
@@ -33,16 +35,21 @@ public class AuthService {
         user.setNickname(defaultNickname(request.email));
 
         userRepository.save(user);
+        log.info("Registered new user with email {}", user.getEmail());
 
         return login(new LoginRequest(request.email, request.password));
     }
 
     public AuthResponse login(LoginRequest request) {
         User user = userRepository.findByEmail(request.email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> {
+                    log.warn("Login rejected for unknown email {}", request.email);
+                    return new IllegalArgumentException("User not found");
+                });
 
         if (!passwordEncoder.matches(request.password, user.getPassword())) {
-            throw new RuntimeException("Wrong password");
+            log.warn("Login rejected due to wrong password for {}", request.email);
+            throw new IllegalArgumentException("Wrong password");
         }
 
         String accessToken = jwtService.generateAccessToken(user);
@@ -54,6 +61,7 @@ public class AuthService {
         token.setExpiryDate(LocalDateTime.now().plus(30, ChronoUnit.DAYS));
 
         refreshTokenRepository.save(token);
+        log.info("User {} logged in successfully", user.getEmail());
 
         AuthResponse response = new AuthResponse();
         response.accessToken = accessToken;
@@ -65,15 +73,20 @@ public class AuthService {
 
     public AuthResponse refresh(String requestToken) {
         RefreshToken token = refreshTokenRepository.findByToken(requestToken)
-                .orElseThrow(() -> new RuntimeException("Invalid refresh"));
+                .orElseThrow(() -> {
+                    log.warn("Refresh rejected for unknown token");
+                    return new IllegalArgumentException("Invalid refresh");
+                });
 
         if (token.getExpiryDate().isBefore(LocalDateTime.now())) {
-            throw new RuntimeException("Expired refresh");
+            log.warn("Refresh rejected for expired token of user {}", token.getUser().getEmail());
+            throw new IllegalArgumentException("Expired refresh");
         }
 
         User user = token.getUser();
 
         String newAccess = jwtService.generateAccessToken(user);
+        log.info("Issued fresh access token for {}", user.getEmail());
 
         AuthResponse response = new AuthResponse();
         response.accessToken = newAccess;
@@ -83,8 +96,16 @@ public class AuthService {
         return response;
     }
     public void logout(String refreshToken) {
+        if (refreshToken == null || refreshToken.isBlank()) {
+            log.info("Logout requested without refresh token");
+            return;
+        }
+
         refreshTokenRepository.findByToken(refreshToken)
-                .ifPresent(refreshTokenRepository::delete);
+                .ifPresentOrElse(token -> {
+                    log.info("User {} logged out", token.getUser().getEmail());
+                    refreshTokenRepository.delete(token);
+                }, () -> log.warn("Logout requested with unknown refresh token"));
     }
 
     private String defaultNickname(String email) {
