@@ -3,6 +3,14 @@ import type { AuthSetter, RequestFn, RequestOptions, SessionState } from './core
 import { ApiError } from './errors';
 import { login, logout, refresh, register } from './services/auth';
 import {
+  createClub,
+  getClub,
+  getClubHistory,
+  getClubs,
+  inviteMemberToClub,
+  type CreateClubInput,
+} from './services/clubs';
+import {
   acceptFriendRequest,
   cancelFriendRequest,
   getFriends,
@@ -30,14 +38,24 @@ import {
   type CreateRoomInput,
   type DayVoteInput,
 } from './services/game';
-import { getHistory, getHistoryDetails } from './services/history';
+import { getHistory, getHistoryDetails, getHistoryDetailsByRoomId } from './services/history';
 import {
   getNotifications,
+  joinClubFromNotification,
   joinGameFromNotification,
   markAllNotificationsRead,
 } from './services/notifications';
 import { getRating } from './services/rating';
-import { getMe, getUserProfile, searchUsers, updateProfile, type UpdateProfileInput } from './services/users';
+import {
+  checkNicknameAvailability,
+  getMe,
+  getMyDossier,
+  getUserDossier,
+  getUserProfile,
+  searchUsers,
+  updateProfile,
+  type UpdateProfileInput,
+} from './services/users';
 import type { AuthResponse } from './types/auth';
 import type { NightActionInput } from './types/game';
 import type { RatingScope } from './types/rating';
@@ -94,6 +112,18 @@ export class ApiClient {
     return getUserProfile(this.request, userId);
   }
 
+  getMyDossier() {
+    return getMyDossier(this.request);
+  }
+
+  checkNicknameAvailability(nickname: string) {
+    return checkNicknameAvailability(this.request, nickname);
+  }
+
+  getUserDossier(userId: number) {
+    return getUserDossier(this.request, userId);
+  }
+
   updateProfile(input: UpdateProfileInput) {
     return updateProfile(this.request, input);
   }
@@ -144,6 +174,26 @@ export class ApiClient {
 
   getTownRoles() {
     return getTownRoles(this.request);
+  }
+
+  getClubs() {
+    return getClubs(this.request);
+  }
+
+  createClub(input: CreateClubInput) {
+    return createClub(this.request, input);
+  }
+
+  getClub(clubId: number) {
+    return getClub(this.request, clubId);
+  }
+
+  inviteMemberToClub(clubId: number, userId: number) {
+    return inviteMemberToClub(this.request, clubId, userId);
+  }
+
+  getClubHistory(clubId: number) {
+    return getClubHistory(this.request, clubId);
   }
 
   createRoom(input: CreateRoomInput) {
@@ -206,12 +256,20 @@ export class ApiClient {
     return joinGameFromNotification(this.request, notificationId);
   }
 
+  joinClubFromNotification(notificationId: number) {
+    return joinClubFromNotification(this.request, notificationId);
+  }
+
   getHistory() {
     return getHistory(this.request);
   }
 
   getHistoryDetails(id: number) {
     return getHistoryDetails(this.request, id);
+  }
+
+  getHistoryDetailsByRoomId(roomId: string) {
+    return getHistoryDetailsByRoomId(this.request, roomId);
   }
 
   private request: RequestFn = async <T>(path: string, init: RequestInit = {}, options: RequestOptions = {}) => {

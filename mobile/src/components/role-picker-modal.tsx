@@ -6,6 +6,7 @@ import { Button } from '@/components/button';
 import { SectionCard } from '@/components/section-card';
 import { palette } from '@/constants/theme';
 import { type RoleCatalogItem } from '@/utils/api';
+import { useLocalization } from '@/utils/localization';
 
 export function RolePickerModal({
   visible,
@@ -22,12 +23,14 @@ export function RolePickerModal({
   onChange: (item: RoleCatalogItem, nextValue: number) => void;
   onClose: () => void;
 }) {
+  const { t } = useLocalization();
+
   return (
     <Modal visible={visible} animationType="slide">
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.header}>
           <Text style={styles.title}>{title}</Text>
-          <Button label="Done" onPress={onClose} tone="secondary" />
+          <Button label={t('common.done')} onPress={onClose} tone="secondary" />
         </View>
 
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">

@@ -18,22 +18,33 @@ export function SegmentedControl<T extends string>({
 }) {
   const styles = useThemedStyles((colors) => ({
     row: {
+      backgroundColor: colors.primarySoft,
+      borderRadius: 999,
       flexDirection: 'row',
-      gap: 8,
+      gap: 6,
+      padding: 6,
     },
     segment: {
       alignItems: 'center',
-      backgroundColor: colors.primarySoft,
+      backgroundColor: 'transparent',
       borderRadius: 999,
       flex: 1,
-      paddingVertical: 10,
+      paddingVertical: 12,
     },
     activeSegment: {
       backgroundColor: colors.primary,
+      shadowColor: colors.overlay,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.12,
+      shadowRadius: 14,
+      elevation: 2,
     },
     label: {
-      color: colors.primary,
+      color: colors.textMuted,
+      fontSize: 13,
       fontWeight: '700',
+      letterSpacing: 0.4,
+      textTransform: 'uppercase',
     },
     activeLabel: {
       color: colors.textOnPrimary,

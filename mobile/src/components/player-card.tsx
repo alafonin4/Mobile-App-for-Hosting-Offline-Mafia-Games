@@ -17,10 +17,10 @@ export function PlayerCard({
     card: {
       backgroundColor: colors.surfaceRaised,
       borderColor: colors.border,
-      borderRadius: 14,
+      borderRadius: 18,
       borderWidth: 1,
-      gap: 4,
-      padding: 14,
+      gap: 6,
+      padding: 16,
     },
     highlighted: {
       backgroundColor: colors.accentSoft,
@@ -28,12 +28,13 @@ export function PlayerCard({
     },
     title: {
       color: colors.text,
-      fontSize: 15,
+      fontSize: 16,
       fontWeight: '700',
     },
     subtitle: {
       color: colors.textMuted,
       fontSize: 13,
+      lineHeight: 18,
     },
   }));
 

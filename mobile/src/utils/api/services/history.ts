@@ -8,3 +8,7 @@ export function getHistory(request: RequestFn) {
 export function getHistoryDetails(request: RequestFn, id: number) {
   return request<HistoryDetail>(`/games/history/${id}`);
 }
+
+export function getHistoryDetailsByRoomId(request: RequestFn, roomId: string) {
+  return request<HistoryDetail>(`/games/history/room/${roomId}`);
+}

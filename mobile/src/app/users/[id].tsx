@@ -1,18 +1,95 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Text, View } from 'react-native';
 
 import { AvatarBadge } from '@/components/avatar-badge';
 import { Button } from '@/components/button';
 import { Screen } from '@/components/screen';
 import { SectionCard } from '@/components/section-card';
-import { palette } from '@/constants/theme';
+import { useAppTheme, useThemedStyles } from '@/theme';
 import { type RelatedUserProfile, type RoleCatalogItem } from '@/utils/api';
+import { useLocalization } from '@/utils/localization';
 import { useSession } from '@/utils/session';
 
 export default function UserProfileScreen() {
   const { api } = useSession();
+  const { colors } = useAppTheme();
+  const { t } = useLocalization();
+  const styles = useThemedStyles((theme) => ({
+    loader: {
+      alignItems: 'center',
+      flex: 1,
+      justifyContent: 'center',
+    },
+    hero: {
+      backgroundColor: theme.surfaceRaised,
+      borderColor: theme.accent,
+      borderWidth: 1,
+    },
+    eyebrow: {
+      color: theme.accent,
+      fontSize: 12,
+      fontWeight: '700',
+      letterSpacing: 1.4,
+      textAlign: 'center',
+      textTransform: 'uppercase',
+    },
+    name: {
+      color: theme.text,
+      fontSize: 28,
+      fontWeight: '800',
+      textAlign: 'center',
+    },
+    email: {
+      color: theme.textMuted,
+      fontSize: 15,
+      textAlign: 'center',
+    },
+    statRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 10,
+      justifyContent: 'center',
+    },
+    statCard: {
+      alignItems: 'center',
+      backgroundColor: theme.primarySoft,
+      borderRadius: 18,
+      minWidth: 96,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+    },
+    statValue: {
+      color: theme.text,
+      fontSize: 18,
+      fontWeight: '800',
+    },
+    statLabel: {
+      color: theme.textMuted,
+      fontSize: 11,
+      fontWeight: '700',
+      letterSpacing: 0.8,
+      textTransform: 'uppercase',
+    },
+    sectionTitle: {
+      color: theme.text,
+      fontSize: 20,
+      fontWeight: '800',
+    },
+    preferenceLabel: {
+      color: theme.textMuted,
+      fontSize: 12,
+      fontWeight: '700',
+      letterSpacing: 0.8,
+      textTransform: 'uppercase',
+    },
+    preferenceValue: {
+      color: theme.text,
+      fontSize: 15,
+      lineHeight: 22,
+    },
+  }));
   const params = useLocalSearchParams<{ id?: string | string[] }>();
   const [profile, setProfile] = useState<RelatedUserProfile | null>(null);
   const [roles, setRoles] = useState<RoleCatalogItem[]>([]);
@@ -22,7 +99,7 @@ export default function UserProfileScreen() {
 
   const load = useCallback(async () => {
     if (!Number.isFinite(userId)) {
-      Alert.alert('Error', 'Invalid profile id');
+      Alert.alert(t('common.error'), t('user.invalidProfileId'));
       router.back();
       return;
     }
@@ -42,11 +119,11 @@ export default function UserProfileScreen() {
         router.replace('/profile');
       }
     } catch (error) {
-      Alert.alert('Error', error instanceof Error ? error.message : 'Cannot load profile');
+      Alert.alert(t('common.error'), error instanceof Error ? error.message : t('user.cannotLoad'));
     } finally {
       setLoading(false);
     }
-  }, [api, userId]);
+  }, [api, userId, t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -56,12 +133,10 @@ export default function UserProfileScreen() {
 
   function roleNames(roleIds: string[]) {
     if (roleIds.length === 0) {
-      return 'Not specified';
+      return t('common.notSpecified');
     }
 
-    return roleIds
-      .map((roleId) => roles.find((item) => item.id === roleId)?.name ?? roleId)
-      .join(', ');
+    return roleIds.map((roleId) => roles.find((item) => item.id === roleId)?.name ?? roleId).join(', ');
   }
 
   async function handlePrimaryAction() {
@@ -80,7 +155,7 @@ export default function UserProfileScreen() {
 
       await load();
     } catch (error) {
-      Alert.alert('Error', error instanceof Error ? error.message : 'Cannot update relation');
+      Alert.alert(t('common.error'), error instanceof Error ? error.message : t('user.cannotUpdateRelation'));
     }
   }
 
@@ -98,92 +173,67 @@ export default function UserProfileScreen() {
 
       await load();
     } catch (error) {
-      Alert.alert('Error', error instanceof Error ? error.message : 'Cannot update relation');
+      Alert.alert(t('common.error'), error instanceof Error ? error.message : t('user.cannotUpdateRelation'));
     }
   }
 
   if (loading || !profile) {
     return (
       <View style={styles.loader}>
-        <ActivityIndicator color={palette.blue} size="large" />
+        <ActivityIndicator color={colors.primary} size="large" />
       </View>
     );
   }
 
   return (
     <Screen scroll>
-      <SectionCard>
-        <AvatarBadge label={profile.nickname} avatarUrl={profile.avatarUrl} />
+      <SectionCard style={styles.hero}>
+        <Text style={styles.eyebrow}>{t('user.guestCard')}</Text>
+        <AvatarBadge label={profile.nickname} avatarUrl={profile.avatarUrl} size={104} />
         <Text style={styles.name}>{profile.nickname}</Text>
         <Text style={styles.email}>{profile.email}</Text>
-        <Text style={styles.meta}>Rating: {profile.rating}</Text>
-        <Text style={styles.meta}>Games: {profile.gamesPlayed}</Text>
-        <Text style={styles.meta}>Wins: {profile.wins}</Text>
+        <View style={styles.statRow}>
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>{profile.rating}</Text>
+            <Text style={styles.statLabel}>{t('common.rating')}</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>{profile.gamesPlayed}</Text>
+            <Text style={styles.statLabel}>{t('common.games')}</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>{profile.wins}</Text>
+            <Text style={styles.statLabel}>{t('common.wins')}</Text>
+          </View>
+        </View>
       </SectionCard>
 
       <SectionCard>
-        <Text style={styles.sectionTitle}>Role preferences</Text>
-        <Text style={styles.preferenceLabel}>Favorite roles</Text>
+        <Text style={styles.sectionTitle}>{t('profile.playingTaste')}</Text>
+        <Text style={styles.preferenceLabel}>{t('profile.favoriteRoles')}</Text>
         <Text style={styles.preferenceValue}>{roleNames(profile.favoriteRoleIds)}</Text>
-        <Text style={styles.preferenceLabel}>Disliked roles</Text>
+        <Text style={styles.preferenceLabel}>{t('profile.dislikedRoles')}</Text>
         <Text style={styles.preferenceValue}>{roleNames(profile.dislikedRoleIds)}</Text>
       </SectionCard>
 
       <SectionCard>
-        {profile.relation === 'NONE' ? (
-          <Button label="Add to friends" onPress={() => void handlePrimaryAction()} />
+        {profile.relation === 'FRIEND' ? (
+          <Button label={t('user.openDossier')} onPress={() => router.push(`/dossier/${profile.id}` as never)} />
         ) : null}
+        {profile.relation === 'NONE' ? <Button label={t('user.addToCircle')} onPress={() => void handlePrimaryAction()} /> : null}
         {profile.relation === 'INCOMING_REQUEST' ? (
           <>
-            <Button label="Accept request" onPress={() => void handlePrimaryAction()} />
-            <Button label="Reject request" tone="secondary" onPress={() => void handleSecondaryAction()} />
+            <Button label={t('user.acceptRequest')} onPress={() => void handlePrimaryAction()} />
+            <Button label={t('user.declineRequest')} tone="secondary" onPress={() => void handleSecondaryAction()} />
           </>
         ) : null}
         {profile.relation === 'OUTGOING_REQUEST' ? (
-          <Button label="Reject request" tone="secondary" onPress={() => void handleSecondaryAction()} />
+          <Button label={t('user.cancelRequest')} tone="secondary" onPress={() => void handleSecondaryAction()} />
         ) : null}
         {profile.relation === 'FRIEND' ? (
-          <Button label="Remove from friends" tone="secondary" onPress={() => void handlePrimaryAction()} />
+          <Button label={t('user.removeFromCircle')} tone="secondary" onPress={() => void handlePrimaryAction()} />
         ) : null}
       </SectionCard>
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  loader: {
-    alignItems: 'center',
-    backgroundColor: palette.sand,
-    flex: 1,
-    justifyContent: 'center',
-  },
-  name: {
-    color: palette.ink,
-    fontSize: 24,
-    fontWeight: '800',
-    textAlign: 'center',
-  },
-  email: {
-    color: palette.muted,
-    textAlign: 'center',
-  },
-  meta: {
-    color: palette.ink,
-    fontSize: 15,
-  },
-  sectionTitle: {
-    color: palette.ink,
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  preferenceLabel: {
-    color: palette.blue,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  preferenceValue: {
-    color: palette.ink,
-    fontSize: 15,
-    lineHeight: 22,
-  },
-});

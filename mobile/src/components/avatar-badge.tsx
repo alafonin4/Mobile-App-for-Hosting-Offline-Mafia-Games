@@ -1,14 +1,44 @@
 import { Image } from 'expo-image';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 
-import { palette } from '@/constants/theme';
+import { useThemedStyles } from '@/theme';
 
-export function AvatarBadge({ label, avatarUrl }: { label: string; avatarUrl?: string | null }) {
+export function AvatarBadge({
+  label,
+  avatarUrl,
+  size = 88,
+}: {
+  label: string;
+  avatarUrl?: string | null;
+  size?: number;
+}) {
   const initials = label
     .split(/\s+/)
     .map((part) => part[0]?.toUpperCase())
     .join('')
     .slice(0, 2);
+  const styles = useThemedStyles((colors) => ({
+    avatar: {
+      alignItems: 'center',
+      alignSelf: 'center',
+      backgroundColor: colors.avatarBackground,
+      borderRadius: size / 2,
+      height: size,
+      justifyContent: 'center',
+      overflow: 'hidden',
+      width: size,
+    },
+    image: {
+      height: '100%',
+      width: '100%',
+    },
+    label: {
+      color: colors.avatarText,
+      fontSize: Math.max(18, Math.round(size * 0.32)),
+      fontWeight: '800',
+      letterSpacing: 0.4,
+    },
+  }));
 
   return (
     <View style={styles.avatar}>
@@ -20,25 +50,3 @@ export function AvatarBadge({ label, avatarUrl }: { label: string; avatarUrl?: s
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  avatar: {
-    alignItems: 'center',
-    alignSelf: 'center',
-    backgroundColor: palette.softBlue,
-    borderRadius: 44,
-    height: 88,
-    justifyContent: 'center',
-    overflow: 'hidden',
-    width: 88,
-  },
-  image: {
-    height: '100%',
-    width: '100%',
-  },
-  label: {
-    color: palette.blue,
-    fontSize: 28,
-    fontWeight: '800',
-  },
-});

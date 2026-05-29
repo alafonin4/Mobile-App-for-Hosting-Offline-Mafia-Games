@@ -1,19 +1,68 @@
 import { useFocusEffect } from '@react-navigation/native';
-import { useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useState } from 'react';
+import { ActivityIndicator, RefreshControl, Text, View } from 'react-native';
 
+import { BreathingView, Reveal } from '@/components/motion';
 import { PlayerCard } from '@/components/player-card';
 import { Screen } from '@/components/screen';
 import { SectionCard } from '@/components/section-card';
 import { SegmentedControl } from '@/components/segmented-control';
-import { palette } from '@/constants/theme';
+import { useAppTheme, useThemedStyles } from '@/theme';
 import { type RatingResponse } from '@/utils/api';
+import { useLocalization } from '@/utils/localization';
 import { useSession } from '@/utils/session';
-import { useCallback } from 'react';
-import { RefreshControl, ScrollView } from 'react-native';
 
 export default function RatingScreen() {
   const { api } = useSession();
+  const { colors } = useAppTheme();
+  const { t } = useLocalization();
+  const styles = useThemedStyles((theme) => ({
+    hero: {
+      backgroundColor: theme.surfaceRaised,
+      borderColor: theme.accent,
+      borderWidth: 1,
+    },
+    eyebrow: {
+      color: theme.accent,
+      fontSize: 12,
+      fontWeight: '700',
+      letterSpacing: 1.4,
+      textTransform: 'uppercase',
+    },
+    title: {
+      color: theme.text,
+      fontSize: 28,
+      fontWeight: '800',
+    },
+    subtitle: {
+      color: theme.textMuted,
+      fontSize: 15,
+      lineHeight: 22,
+    },
+    banner: {
+      backgroundColor: theme.accentSoft,
+      borderRadius: 18,
+      gap: 4,
+      padding: 14,
+    },
+    bannerLabel: {
+      color: theme.textMuted,
+      fontSize: 12,
+      fontWeight: '700',
+      letterSpacing: 0.8,
+      textTransform: 'uppercase',
+    },
+    bannerText: {
+      color: theme.text,
+      fontSize: 15,
+      fontWeight: '700',
+      lineHeight: 21,
+    },
+    loader: {
+      alignItems: 'center',
+      paddingVertical: 32,
+    },
+  }));
   const [refreshing, setRefreshing] = useState(false);
   const [scope, setScope] = useState<'all' | 'friends'>('all');
   const [data, setData] = useState<RatingResponse | null>(null);
@@ -22,8 +71,7 @@ export default function RatingScreen() {
   const onRefresh = async () => {
     try {
       setRefreshing(true);
-      const next = await api.getRating(scope);
-      setData(next);
+      setData(await api.getRating(scope));
     } finally {
       setRefreshing(false);
     }
@@ -48,7 +96,6 @@ export default function RatingScreen() {
       }
 
       void load();
-
       return () => {
         cancelled = true;
       };
@@ -56,71 +103,53 @@ export default function RatingScreen() {
   );
 
   return (
-    <Screen>
-      <ScrollView
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={palette.blue}
-            colors={[palette.blue]}
-          />
-        }>
-        <SectionCard>
-          <Text style={styles.title}>Rating</Text>
-          <SegmentedControl
-            options={[
-              { label: 'All', value: 'all' },
-              { label: 'Friends', value: 'friends' },
-            ]}
-            value={scope}
-            onChange={setScope}
-          />
-          {data?.currentUser ? (
-            <View style={styles.banner}>
-              <Text style={styles.bannerText}>
-                You: {data.currentUser.nickname} | rank {data.currentUserRank ?? '-'} | rating {data.currentUser.rating}
-              </Text>
-            </View>
-          ) : null}
-        </SectionCard>
+    <Screen scroll refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}>
+      <BreathingView>
+        <Reveal>
+          <SectionCard style={styles.hero}>
+            <Text style={styles.eyebrow}>{t('rating.eyebrow')}</Text>
+            <Text style={styles.title}>{t('rating.title')}</Text>
+            <Text style={styles.subtitle}>
+              {t('rating.copy')}
+            </Text>
+            <SegmentedControl
+              options={[
+                { label: t('rating.allMembers'), value: 'all' },
+                { label: t('rating.myCircle'), value: 'friends' },
+              ]}
+              value={scope}
+              onChange={setScope}
+            />
+            {data?.currentUser ? (
+              <View style={styles.banner}>
+                <Text style={styles.bannerLabel}>{t('rating.yourStanding')}</Text>
+                <Text style={styles.bannerText}>
+                  {data.currentUser.nickname} / {t('common.rank')} {data.currentUserRank ?? '-'} / {t('common.rating').toLowerCase()} {data.currentUser.rating}
+                </Text>
+              </View>
+            ) : null}
+          </SectionCard>
+        </Reveal>
+      </BreathingView>
 
-        {loading ? (
-          <View style={styles.loader}>
-            <ActivityIndicator color={palette.blue} />
-          </View>
-        ) : (
-          data?.entries.map((entry) => (
+      {loading ? (
+        <View style={styles.loader}>
+          <ActivityIndicator color={colors.primary} />
+        </View>
+      ) : (
+        data?.entries.map((entry, index) => (
+          <Reveal key={entry.id} delay={Math.min(index * 30, 210)}>
             <PlayerCard
-              key={entry.id}
               title={`${entry.rank}. ${entry.nickname}`}
-              subtitle={`Rating ${entry.rating} | games ${entry.gamesPlayed} | wins ${entry.wins}`}
+              subtitle={t('rating.entryMeta')
+                .replace('{rating}', String(entry.rating))
+                .replace('{games}', String(entry.gamesPlayed))
+                .replace('{wins}', String(entry.wins))}
               highlight={entry.currentUser}
             />
-          ))
-        )}
-      </ScrollView>
+          </Reveal>
+        ))
+      )}
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  title: {
-    color: palette.ink,
-    fontSize: 22,
-    fontWeight: '700',
-  },
-  banner: {
-    backgroundColor: palette.softAmber,
-    borderRadius: 14,
-    padding: 12,
-  },
-  bannerText: {
-    color: palette.ink,
-    fontWeight: '700',
-  },
-  loader: {
-    alignItems: 'center',
-    paddingVertical: 32,
-  },
-});

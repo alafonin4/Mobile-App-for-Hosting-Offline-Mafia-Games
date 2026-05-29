@@ -11,25 +11,32 @@ export function FormField({ label, error, multiline, ...props }: FormFieldProps)
   const { colors } = useAppTheme();
   const styles = useThemedStyles((theme) => ({
     container: {
-      gap: 8,
+      gap: 10,
     },
     label: {
-      color: theme.primary,
-      fontSize: 13,
-      fontWeight: '600',
+      color: theme.textMuted,
+      fontSize: 12,
+      fontWeight: '700',
+      letterSpacing: 0.9,
+      textTransform: 'uppercase',
     },
     input: {
       backgroundColor: theme.input,
       borderColor: theme.border,
-      borderRadius: 14,
+      borderRadius: 18,
       borderWidth: 1,
       color: theme.text,
-      minHeight: 48,
-      paddingHorizontal: 14,
-      paddingVertical: 12,
+      minHeight: 54,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      shadowColor: theme.overlay,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.06,
+      shadowRadius: 12,
+      elevation: 1,
     },
     multiline: {
-      minHeight: 96,
+      minHeight: 104,
       textAlignVertical: 'top',
     },
     error: {

@@ -1,15 +1,18 @@
-import { router, useLocalSearchParams } from 'expo-router';
+import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, StyleSheet, Text } from 'react-native';
+import { ActivityIndicator, Alert, Text, View } from 'react-native';
 
 import { Button } from '@/components/button';
 import { PlayerCard } from '@/components/player-card';
+import { RoleShowcaseCard } from '@/components/role-showcase-card';
 import { Screen } from '@/components/screen';
 import { SectionCard } from '@/components/section-card';
 import { VoteRoundCard } from '@/components/vote-round-card';
-import { palette } from '@/constants/theme';
-import { type GamePhase, type GameRoom, type RoomPlayer } from '@/utils/api';
+import { useAppTheme, useThemedStyles } from '@/theme';
+import { findRoleCatalogItem, mergeRoleCatalog } from '@/utils/role-gallery';
+import { type GamePhase, type GameRoom, type RoleCatalogItem, type RoomPlayer } from '@/utils/api';
 import { useGameEvents } from '@/utils/game-socket';
+import { type TranslationKey, useLocalization } from '@/utils/localization';
 import { useSession } from '@/utils/session';
 
 const SPEECH_SECONDS = 60;
@@ -27,9 +30,9 @@ function formatTimer(value: number) {
   return `${minutes}:${seconds}`;
 }
 
-function formatRoleLabel(role: string | null, variant: string | null) {
+function formatRoleLabel(role: string | null, variant: string | null, t: (key: TranslationKey) => string) {
   if (!role) {
-    return 'Role hidden';
+    return t('game.roleHidden');
   }
   if (!variant || variant === 'DEFAULT') {
     return role;
@@ -49,14 +52,204 @@ function queuePlayers(players: RoomPlayer[], queueUserIds: number[]) {
     .filter((player): player is RoomPlayer => Boolean(player));
 }
 
+type HostAssistantItem = {
+  key: string;
+  labelKey: TranslationKey;
+  detailKey: TranslationKey;
+  active: boolean;
+  done: boolean;
+  meta?: string;
+};
+
+function buildHostAssistantItems(
+  room: GameRoom,
+  moderatorPlayers: RoomPlayer[],
+  t: (key: TranslationKey) => string,
+): HostAssistantItem[] {
+  const readyGuests = moderatorPlayers.filter((player) => player.ready).length;
+  const aliveGuests = moderatorPlayers.filter((player) => player.status === 'ALIVE').length;
+  const requiredNightActions = room.requiredNightActions;
+  const pendingNightActions = room.pendingNightActions;
+  const submittedNightActions = Math.max(0, requiredNightActions - pendingNightActions);
+
+  return [
+    {
+      key: 'readiness',
+      labelKey: 'hostAssistant.readiness',
+      detailKey: 'hostAssistant.readinessDetail',
+      active: room.phase === 'LOBBY',
+      done: moderatorPlayers.length > 0 && readyGuests === moderatorPlayers.length,
+      meta: `${readyGuests}/${moderatorPlayers.length} ${t('game.ready')}`,
+    },
+    {
+      key: 'phase',
+      labelKey: 'hostAssistant.phaseControl',
+      detailKey: 'hostAssistant.phaseControlDetail',
+      active: room.phase !== 'FINISHED',
+      done: room.phase !== 'LOBBY',
+      meta: room.phase,
+    },
+    {
+      key: 'discussion',
+      labelKey: 'hostAssistant.discussion',
+      detailKey: 'hostAssistant.discussionDetail',
+      active: room.phase === 'DAY_DISCUSSION',
+      done: room.dayNumber > 0 && room.phase !== 'DAY_DISCUSSION',
+      meta: `${aliveGuests} ${t('game.alive')} / ${room.discussionQueueUserIds.length} ${t('game.queued')}`,
+    },
+    {
+      key: 'voting',
+      labelKey: 'hostAssistant.voting',
+      detailKey: 'hostAssistant.votingDetail',
+      active: room.phase === 'DAY_VOTING',
+      done: room.phase === 'NIGHT_ACTIONS' || room.phase === 'FINISHED',
+      meta: room.activeVoteRound ? `${t('game.round')} ${room.activeVoteRound.roundNumber}` : t('game.noActiveVote'),
+    },
+    {
+      key: 'night',
+      labelKey: 'hostAssistant.nightActions',
+      detailKey: 'hostAssistant.nightActionsDetail',
+      active: room.phase === 'NIGHT_ACTIONS',
+      done: requiredNightActions > 0 && pendingNightActions === 0,
+      meta: `${submittedNightActions}/${requiredNightActions} ${t('game.submitted')}`,
+    },
+    {
+      key: 'complete',
+      labelKey: 'hostAssistant.complete',
+      detailKey: 'hostAssistant.completeDetail',
+      active: room.phase === 'FINISHED',
+      done: room.phase === 'FINISHED',
+      meta: room.winner ? `${t('game.winnerMeta')}: ${room.winner}` : undefined,
+    },
+  ];
+}
+
 export default function GameScreen() {
   const { roomId } = useLocalSearchParams<{ roomId: string }>();
   const { api, session } = useSession();
+  const { colors } = useAppTheme();
+  const { t } = useLocalization();
+  const styles = useThemedStyles((theme) => ({
+    loader: {
+      alignItems: 'center',
+      flex: 1,
+      justifyContent: 'center',
+    },
+    hero: {
+      backgroundColor: theme.surfaceRaised,
+      borderColor: theme.accent,
+      borderWidth: 1,
+    },
+    title: {
+      color: theme.text,
+      fontSize: 24,
+      fontWeight: '800',
+    },
+    eyebrow: {
+      color: theme.accent,
+      fontSize: 12,
+      fontWeight: '700',
+      letterSpacing: 1.4,
+      textTransform: 'uppercase',
+    },
+    meta: {
+      color: theme.textMuted,
+      fontSize: 14,
+      lineHeight: 20,
+    },
+    assistantGrid: {
+      gap: 10,
+    },
+    assistantItem: {
+      backgroundColor: theme.surfaceRaised,
+      borderColor: theme.border,
+      borderRadius: 16,
+      borderWidth: 1,
+      gap: 4,
+      padding: 14,
+    },
+    assistantItemActive: {
+      backgroundColor: theme.primarySoft,
+      borderColor: theme.primary,
+    },
+    assistantItemDone: {
+      backgroundColor: theme.successSoft,
+      borderColor: theme.success,
+    },
+    assistantLabel: {
+      color: theme.text,
+      fontSize: 15,
+      fontWeight: '800',
+    },
+    assistantDetail: {
+      color: theme.textMuted,
+      fontSize: 13,
+      lineHeight: 18,
+    },
+    privateInfo: {
+      color: theme.primary,
+      lineHeight: 20,
+    },
+    timerLabel: {
+      color: theme.textMuted,
+      fontSize: 12,
+      fontWeight: '700',
+      letterSpacing: 0.8,
+      textTransform: 'uppercase',
+    },
+    timerValue: {
+      color: theme.text,
+      fontSize: 42,
+      fontWeight: '700',
+      textAlign: 'center',
+    },
+    timerValueExpired: {
+      color: theme.danger,
+    },
+    timerExpired: {
+      color: theme.danger,
+      fontSize: 14,
+      fontWeight: '700',
+      textAlign: 'center',
+    },
+    mafiaPlayerCard: {
+      backgroundColor: theme.dangerSoft,
+      borderColor: theme.danger,
+    },
+    townPlayerCard: {
+      backgroundColor: theme.successSoft,
+      borderColor: theme.success,
+    },
+    queuePlayerCard: {
+      backgroundColor: theme.primarySoft,
+      borderColor: theme.primary,
+    },
+    overlayBackdrop: {
+      backgroundColor: theme.overlay,
+      bottom: 0,
+      justifyContent: 'center',
+      left: 0,
+      padding: 18,
+      position: 'absolute',
+      right: 0,
+      top: 0,
+    },
+    overlayCard: {
+      maxHeight: '82%',
+    },
+    overlayActions: {
+      gap: 10,
+      marginTop: 16,
+    },
+  }));
   const [room, setRoom] = useState<GameRoom | null>(null);
+  const [roleCatalog, setRoleCatalog] = useState<RoleCatalogItem[]>([]);
   const [selectedAction, setSelectedAction] = useState<string | null>(null);
   const [selectedTarget, setSelectedTarget] = useState<number | null>(null);
   const [lastPrivateEvent, setLastPrivateEvent] = useState('');
+  const [showRoleReveal, setShowRoleReveal] = useState(false);
   const hasHandledFinishRef = useRef(false);
+  const revealedRoleKeyRef = useRef<string | null>(null);
   const [timerMode, setTimerMode] = useState<'speech' | 'discussion'>('speech');
   const [currentSpeakerIndex, setCurrentSpeakerIndex] = useState(0);
   const [timerDuration, setTimerDuration] = useState<number>(SPEECH_SECONDS);
@@ -70,16 +263,31 @@ export default function GameScreen() {
     try {
       setRoom(await api.getRoom(roomId));
     } catch (error) {
-      Alert.alert('Error', error instanceof Error ? error.message : 'Cannot load game room');
+      Alert.alert(t('common.error'), error instanceof Error ? error.message : t('game.cannotLoadRoom'));
     }
-  }, [api, roomId]);
+  }, [api, roomId, t]);
 
   useEffect(() => {
     void loadRoom();
   }, [loadRoom]);
 
   useEffect(() => {
+    async function loadRoleCatalog() {
+      try {
+        const [mafiaRoles, townRoles] = await Promise.all([api.getMafiaRoles(), api.getTownRoles()]);
+        setRoleCatalog(mergeRoleCatalog(mafiaRoles, townRoles));
+      } catch (error) {
+        Alert.alert(t('game.rolesUnavailable'), error instanceof Error ? error.message : t('game.cannotLoadRoleGallery'));
+      }
+    }
+
+    void loadRoleCatalog();
+  }, [api, t]);
+
+  useEffect(() => {
     hasHandledFinishRef.current = false;
+    revealedRoleKeyRef.current = null;
+    setShowRoleReveal(false);
   }, [roomId]);
 
   useGameEvents(roomId ?? '', (event) => {
@@ -101,16 +309,7 @@ export default function GameScreen() {
     }
 
     hasHandledFinishRef.current = true;
-    Alert.alert('Game finished', `Winner: ${room.winner}`, [
-      {
-        text: 'History',
-        onPress: () => router.replace('/history'),
-      },
-      {
-        text: 'Games',
-        onPress: () => router.replace('/games'),
-      },
-    ]);
+    router.replace(`/aftergame/${room.roomId}` as never);
   }, [room]);
 
   useEffect(() => {
@@ -139,6 +338,12 @@ export default function GameScreen() {
   const currentPlayer = room?.players.find((player) => player.userId === session.userId);
   const isHost = Boolean(currentPlayer?.host);
   const roomPhase = room?.phase;
+  const currentRoleCard = room
+    ? findRoleCatalogItem(roleCatalog, room.currentUserRole, room.currentUserVariant)
+    : null;
+  const currentRoleKey = room?.currentUserRole
+    ? `${room.currentUserRole}:${room.currentUserVariant ?? 'DEFAULT'}`
+    : null;
 
   useEffect(() => {
     if (!roomPhase || !isHost) {
@@ -157,10 +362,25 @@ export default function GameScreen() {
     setTimerRunning(false);
   }, [isHost, roomPhase]);
 
+  useEffect(() => {
+    if (!room || isHost || room.phase === 'LOBBY' || !currentRoleCard || !currentRoleKey) {
+      return;
+    }
+
+    if (revealedRoleKeyRef.current === currentRoleKey) {
+      return;
+    }
+
+    revealedRoleKeyRef.current = currentRoleKey;
+    setShowRoleReveal(true);
+  }, [currentRoleCard, currentRoleKey, isHost, room]);
+
   if (!room) {
     return (
       <Screen>
-        <ActivityIndicator color={palette.blue} size="large" />
+        <View style={styles.loader}>
+          <ActivityIndicator color={colors.primary} size="large" />
+        </View>
       </Screen>
     );
   }
@@ -210,7 +430,7 @@ export default function GameScreen() {
         setRoom(await api.startNight(currentRoom.roomId));
       }
     } catch (error) {
-      Alert.alert('Phase change failed', error instanceof Error ? error.message : 'Cannot change phase');
+      Alert.alert(t('game.phaseChangeFailed'), error instanceof Error ? error.message : t('game.cannotChangePhase'));
     }
   }
 
@@ -218,7 +438,7 @@ export default function GameScreen() {
     try {
       setRoom(await api.joinDiscussionQueue(currentRoom.roomId));
     } catch (error) {
-      Alert.alert('Queue failed', error instanceof Error ? error.message : 'Cannot join discussion queue');
+      Alert.alert(t('game.queueFailed'), error instanceof Error ? error.message : t('game.cannotJoinQueue'));
     }
   }
 
@@ -266,23 +486,24 @@ export default function GameScreen() {
         );
       }
     } catch (error) {
-      Alert.alert('Action failed', error instanceof Error ? error.message : 'Cannot submit action');
+      Alert.alert(t('game.actionFailed'), error instanceof Error ? error.message : t('game.cannotSubmitAction'));
     }
   }
 
   if (currentRoom.phase === 'FINISHED') {
     return (
       <Screen>
-        <SectionCard>
+        <SectionCard style={styles.hero}>
+          <Text style={styles.eyebrow}>{t('ceremony.eyebrow')}</Text>
           <Text style={styles.title}>{currentRoom.name}</Text>
-          <Text style={styles.meta}>Game finished</Text>
-          <Text style={styles.meta}>Winner: {currentRoom.winner}</Text>
-          <Text style={styles.meta}>Night: {currentRoom.nightNumber}</Text>
-          <Text style={styles.meta}>Day: {currentRoom.dayNumber}</Text>
+          <Text style={styles.meta}>{t('game.finishedTitle')}</Text>
+          <Text style={styles.meta}>{t('ceremony.winner')}: {currentRoom.winner}</Text>
+          <Text style={styles.meta}>{t('game.night')}: {currentRoom.nightNumber}</Text>
+          <Text style={styles.meta}>{t('game.day')}: {currentRoom.dayNumber}</Text>
         </SectionCard>
 
         <SectionCard>
-          <Text style={styles.title}>Players</Text>
+          <Text style={styles.title}>{t('game.players')}</Text>
           {currentRoom.players.map((player) => (
             <PlayerCard
               key={player.userId}
@@ -293,8 +514,8 @@ export default function GameScreen() {
           ))}
         </SectionCard>
 
-        <Button label="Open history" onPress={() => router.replace('/history')} />
-        <Button label="Back to games" tone="secondary" onPress={() => router.replace('/games')} />
+        <Button label={t('game.finishedHistory')} onPress={() => router.replace(`/aftergame/${currentRoom.roomId}` as never)} />
+        <Button label={t('game.finishedGames')} tone="secondary" onPress={() => router.replace('/games')} />
       </Screen>
     );
   }
@@ -302,41 +523,63 @@ export default function GameScreen() {
   if (isHost) {
     return (
       <Screen scroll>
-        <SectionCard>
+        <SectionCard style={styles.hero}>
+          <Text style={styles.eyebrow}>{t('game.moderatorConsole')}</Text>
           <Text style={styles.title}>{currentRoom.name}</Text>
-          <Text style={styles.meta}>Phase: {currentRoom.phase}</Text>
-          <Text style={styles.meta}>Night: {currentRoom.nightNumber}</Text>
-          <Text style={styles.meta}>Day: {currentRoom.dayNumber}</Text>
-          <Text style={styles.meta}>Mode: Moderator</Text>
+          <Text style={styles.meta}>{t('game.phase')}: {currentRoom.phase}</Text>
+          <Text style={styles.meta}>{t('game.night')}: {currentRoom.nightNumber}</Text>
+          <Text style={styles.meta}>{t('game.day')}: {currentRoom.dayNumber}</Text>
+          <Text style={styles.meta}>{t('game.modeModerator')}</Text>
         </SectionCard>
 
         <SectionCard>
-          <Text style={styles.title}>Stages</Text>
+          <Text style={styles.title}>{t('hostAssistant.title')}</Text>
+          <Text style={styles.meta}>{t('hostAssistant.subtitle')}</Text>
+          <View style={styles.assistantGrid}>
+            {buildHostAssistantItems(currentRoom, moderatorPlayers, t).map((item) => (
+              <View
+                key={item.key}
+                style={[
+                  styles.assistantItem,
+                  item.active && styles.assistantItemActive,
+                  item.done && styles.assistantItemDone,
+                ]}
+              >
+                <Text style={styles.assistantLabel}>{t(item.labelKey)}</Text>
+                <Text style={styles.assistantDetail}>{t(item.detailKey)}</Text>
+                {item.meta ? <Text style={styles.assistantDetail}>{item.meta}</Text> : null}
+              </View>
+            ))}
+          </View>
+        </SectionCard>
+
+        <SectionCard>
+          <Text style={styles.title}>{t('game.stages')}</Text>
           <Button
-            label="Day"
+            label={t('game.dayStage')}
             tone={currentRoom.phase === 'DAY_DISCUSSION' ? 'primary' : 'secondary'}
             onPress={() => void changePhase('DAY_DISCUSSION')}
           />
           <Button
-            label="Voting"
+            label={t('game.votingStage')}
             tone={currentRoom.phase === 'DAY_VOTING' ? 'primary' : 'secondary'}
             onPress={() => void changePhase('DAY_VOTING')}
           />
           <Button
-            label="Night"
+            label={t('game.nightStage')}
             tone={currentRoom.phase === 'NIGHT_ACTIONS' ? 'primary' : 'secondary'}
             onPress={() => void changePhase('NIGHT_ACTIONS')}
           />
         </SectionCard>
 
         <SectionCard>
-          <Text style={styles.title}>Moderator timer</Text>
+          <Text style={styles.title}>{t('game.moderatorTimer')}</Text>
           {currentRoom.phase === 'DAY_DISCUSSION' ? (
             <>
               <Text style={styles.timerLabel}>
                 {timerMode === 'speech'
-                  ? `Speech: ${currentSpeaker?.email ?? 'No speaker'}`
-                  : 'Discussion'}
+                  ? `${t('game.speech')}: ${currentSpeaker?.email ?? t('game.noSpeaker')}`
+                  : t('game.discussion')}
               </Text>
               <Text style={[styles.timerValue, timeLeft === 0 && styles.timerValueExpired]}>
                 {formatTimer(timeLeft)}
@@ -344,7 +587,7 @@ export default function GameScreen() {
               {timerMode === 'speech' ? (
                 <>
                   <Button
-                    label={currentSpeakerIndex < moderatorPlayers.length - 1 ? 'Next speaker' : 'Start discussion'}
+                    label={currentSpeakerIndex < moderatorPlayers.length - 1 ? t('game.nextSpeaker') : t('game.startDiscussion')}
                     onPress={nextSpeechOrDiscussion}
                   />
                   <Button
@@ -356,49 +599,49 @@ export default function GameScreen() {
               ) : (
                 <>
                   <Button label="+30 sec" tone="secondary" onPress={() => addTime(DISCUSSION_EXTENSION_SECONDS)} />
-                  <Button label="Restart speeches" tone="secondary" onPress={resetDiscussionFlow} />
+                  <Button label={t('game.restartSpeeches')} tone="secondary" onPress={resetDiscussionFlow} />
                 </>
               )}
-              <Button label={timerRunning ? 'Pause' : 'Start'} onPress={toggleTimer} />
-              <Button label="Reset timer" tone="secondary" onPress={resetTimer} />
-              {timeLeft === 0 ? <Text style={styles.timerExpired}>Time is up.</Text> : null}
+              <Button label={timerRunning ? t('game.pause') : t('game.start')} onPress={toggleTimer} />
+              <Button label={t('game.resetTimer')} tone="secondary" onPress={resetTimer} />
+              {timeLeft === 0 ? <Text style={styles.timerExpired}>{t('game.timeIsUp')}</Text> : null}
             </>
           ) : (
             <Text style={styles.meta}>
-              Timer is active during the day discussion stage.
+              {t('game.timerInactive')}
             </Text>
           )}
         </SectionCard>
 
         <SectionCard>
-          <Text style={styles.title}>Discussion queue</Text>
+          <Text style={styles.title}>{t('game.discussionQueue')}</Text>
           <Text style={styles.meta}>
             {queuedPlayers.length
-              ? `Discussion after speeches: ${discussionSeconds(queuedPlayers.length)} sec`
-              : 'No one has taken the discussion queue. Discussion stays at 03:00.'}
+              ? `${t('game.queueAfterSpeeches')}: ${discussionSeconds(queuedPlayers.length)} sec`
+              : t('game.queueEmptyLong')}
           </Text>
           {queuedPlayers.length ? (
             queuedPlayers.map((player) => (
               <PlayerCard
                 key={player.userId}
                 title={player.email}
-                subtitle="Queued for discussion"
+                subtitle={t('game.queuedForDiscussion')}
                 style={styles.queuePlayerCard}
               />
             ))
           ) : (
-            <Text style={styles.meta}>Queue is empty.</Text>
+            <Text style={styles.meta}>{t('game.queueEmpty')}</Text>
           )}
         </SectionCard>
 
         <SectionCard>
-          <Text style={styles.title}>Players and roles</Text>
-          <Text style={styles.meta}>Red cards are mafia roles. Green cards are everyone else.</Text>
+          <Text style={styles.title}>{t('game.playersAndRoles')}</Text>
+          <Text style={styles.meta}>{t('game.roleColorHint')}</Text>
           {moderatorPlayers.map((player) => (
             <PlayerCard
               key={player.userId}
               title={player.email}
-              subtitle={`${player.status} | ${formatRoleLabel(player.visibleRole, player.visibleVariant)}`}
+              subtitle={`${player.status} | ${formatRoleLabel(player.visibleRole, player.visibleVariant, t)}`}
               style={player.visibleFaction === 'MAFIA' ? styles.mafiaPlayerCard : styles.townPlayerCard}
             />
           ))}
@@ -406,7 +649,7 @@ export default function GameScreen() {
 
         {currentRoom.activeVoteRound ? (
           <SectionCard>
-            <Text style={styles.title}>Vote round</Text>
+            <Text style={styles.title}>{t('game.voteRound')}</Text>
             <VoteRoundCard voteRound={currentRoom.activeVoteRound} />
           </SectionCard>
         ) : null}
@@ -415,151 +658,126 @@ export default function GameScreen() {
   }
 
   return (
-    <Screen scroll>
-      <SectionCard>
-        <Text style={styles.title}>{currentRoom.name}</Text>
-        <Text style={styles.meta}>Phase: {currentRoom.phase}</Text>
-        <Text style={styles.meta}>Night: {currentRoom.nightNumber}</Text>
-        <Text style={styles.meta}>Day: {currentRoom.dayNumber}</Text>
-        <Text style={styles.meta}>Your role: {currentRoom.currentUserRole ?? 'Hidden'}</Text>
-        {lastPrivateEvent ? <Text style={styles.privateInfo}>{lastPrivateEvent}</Text> : null}
-      </SectionCard>
-
-      <SectionCard>
-        <Text style={styles.title}>Players</Text>
-        {currentRoom.players.map((player) => (
-          <PlayerCard
-            key={player.userId}
-            title={player.email}
-            subtitle={`${player.status}${player.visibleRole ? ` | ${player.visibleRole}` : ''}`}
-            highlight={player.host}
-          />
-        ))}
-      </SectionCard>
-
-      {currentRoom.phase === 'DAY_DISCUSSION' ? (
-        <SectionCard>
-          <Text style={styles.title}>Discussion queue</Text>
+    <View style={{ flex: 1 }}>
+      <Screen scroll>
+        <SectionCard style={styles.hero}>
+          <Text style={styles.eyebrow}>{t('game.activeTable')}</Text>
+          <Text style={styles.title}>{currentRoom.name}</Text>
+          <Text style={styles.meta}>{t('game.phase')}: {currentRoom.phase}</Text>
+          <Text style={styles.meta}>{t('game.night')}: {currentRoom.nightNumber}</Text>
+          <Text style={styles.meta}>{t('game.day')}: {currentRoom.dayNumber}</Text>
           <Text style={styles.meta}>
-            Take a place in the discussion queue for the group talk after speeches.
+            {t('game.yourRole')}: {currentRoleCard?.name ?? currentRoom.currentUserRole ?? t('common.hidden')}
           </Text>
-          <Button
-            label={currentUserInQueue ? 'Already in queue' : 'Join discussion queue'}
-            onPress={() => void joinDiscussion()}
-            disabled={currentUserInQueue || currentPlayer?.status !== 'ALIVE'}
-          />
+          {currentRoleCard ? (
+            <Button label={t('game.reviewRoleCard')} tone="secondary" onPress={() => setShowRoleReveal(true)} />
+          ) : null}
+          {lastPrivateEvent ? <Text style={styles.privateInfo}>{lastPrivateEvent}</Text> : null}
         </SectionCard>
-      ) : null}
 
-      {currentRoom.phase === 'NIGHT_ACTIONS' ? (
-        <>
+        <SectionCard>
+          <Text style={styles.title}>{t('game.players')}</Text>
+          {currentRoom.players.map((player) => (
+            <PlayerCard
+              key={player.userId}
+              title={player.email}
+              subtitle={`${player.status}${player.visibleRole ? ` | ${player.visibleRole}` : ''}`}
+              highlight={player.host}
+            />
+          ))}
+        </SectionCard>
+
+        {currentRoom.phase === 'DAY_DISCUSSION' ? (
           <SectionCard>
-            <Text style={styles.title}>Actions</Text>
-            {currentRoom.currentUserActions.length ? (
-              currentRoom.currentUserActions.map((action) => (
-                <Button
-                  key={action.slotId}
-                  label={`${selectedAction === action.actionCode ? 'Selected: ' : ''}${action.actionCode}`}
-                  tone={selectedAction === action.actionCode ? 'primary' : 'secondary'}
-                  onPress={() => setSelectedAction(action.actionCode)}
-                />
-              ))
-            ) : (
-              <Text style={styles.meta}>No actions available right now.</Text>
-            )}
+            <Text style={styles.title}>{t('game.discussionQueue')}</Text>
+            <Text style={styles.meta}>{t('game.discussionQueueCopy')}</Text>
+            <Button
+              label={currentUserInQueue ? t('game.alreadyInQueue') : t('game.joinDiscussionQueue')}
+              onPress={() => void joinDiscussion()}
+              disabled={currentUserInQueue || currentPlayer?.status !== 'ALIVE'}
+            />
           </SectionCard>
+        ) : null}
 
+        {currentRoom.phase === 'NIGHT_ACTIONS' ? (
+          <>
+            <SectionCard>
+              <Text style={styles.title}>{t('game.actions')}</Text>
+              {currentRoom.currentUserActions.length ? (
+                currentRoom.currentUserActions.map((action) => (
+                  <Button
+                    key={action.slotId}
+                    label={`${selectedAction === action.actionCode ? `${t('common.selectedPrefix')}: ` : ''}${action.actionCode}`}
+                    tone={selectedAction === action.actionCode ? 'primary' : 'secondary'}
+                    onPress={() => setSelectedAction(action.actionCode)}
+                  />
+                ))
+              ) : (
+                <Text style={styles.meta}>{t('game.noActions')}</Text>
+              )}
+            </SectionCard>
+
+            <SectionCard>
+              <Text style={styles.title}>{t('game.target')}</Text>
+              {alivePlayers.map((player) => (
+                <Button
+                  key={player.userId}
+                  label={`${selectedTarget === player.userId ? `${t('common.selectedPrefix')}: ` : ''}${player.email}`}
+                  tone={selectedTarget === player.userId ? 'primary' : 'secondary'}
+                  onPress={() => setSelectedTarget(player.userId)}
+                />
+              ))}
+              <Button label={t('game.skipTarget')} tone="secondary" onPress={() => setSelectedTarget(null)} />
+            </SectionCard>
+          </>
+        ) : null}
+
+        {currentRoom.phase === 'DAY_VOTING' ? (
           <SectionCard>
-            <Text style={styles.title}>Target</Text>
+            <Text style={styles.title}>{t('game.voteTarget')}</Text>
             {alivePlayers.map((player) => (
               <Button
                 key={player.userId}
-                label={`${selectedTarget === player.userId ? 'Selected: ' : ''}${player.email}`}
+                label={`${selectedTarget === player.userId ? `${t('common.selectedPrefix')}: ` : ''}${player.email}`}
                 tone={selectedTarget === player.userId ? 'primary' : 'secondary'}
                 onPress={() => setSelectedTarget(player.userId)}
               />
             ))}
-            <Button label="Skip target" tone="secondary" onPress={() => setSelectedTarget(null)} />
           </SectionCard>
-        </>
-      ) : null}
+        ) : null}
 
-      {currentRoom.phase === 'DAY_VOTING' ? (
-        <SectionCard>
-          <Text style={styles.title}>Vote target</Text>
-          {alivePlayers.map((player) => (
+        {currentRoom.activeVoteRound ? (
+          <SectionCard>
+            <Text style={styles.title}>{t('game.voteRound')}</Text>
+            <VoteRoundCard voteRound={currentRoom.activeVoteRound} />
+          </SectionCard>
+        ) : null}
+
+        {canSubmitNightAction || canSubmitVote ? (
+          <Button
+            label={currentRoom.phase === 'DAY_VOTING' ? t('game.submitVote') : t('game.submitAction')}
+            onPress={() => void sendAction()}
+            disabled={currentRoom.phase === 'NIGHT_ACTIONS' ? !selectedAction : !selectedTarget}
+          />
+        ) : null}
+      </Screen>
+
+      {showRoleReveal && currentRoleCard ? (
+        <View style={styles.overlayBackdrop}>
+          <RoleShowcaseCard item={currentRoleCard} style={styles.overlayCard} />
+          <View style={styles.overlayActions}>
+            <Button label={t('game.enterTable')} onPress={() => setShowRoleReveal(false)} />
             <Button
-              key={player.userId}
-              label={`${selectedTarget === player.userId ? 'Selected: ' : ''}${player.email}`}
-              tone={selectedTarget === player.userId ? 'primary' : 'secondary'}
-              onPress={() => setSelectedTarget(player.userId)}
+              label={t('game.openFullGallery')}
+              tone="secondary"
+              onPress={() => {
+                setShowRoleReveal(false);
+                router.push('/(tabs)/roles' as Href);
+              }}
             />
-          ))}
-        </SectionCard>
+          </View>
+        </View>
       ) : null}
-
-      {currentRoom.activeVoteRound ? (
-        <SectionCard>
-          <Text style={styles.title}>Vote round</Text>
-          <VoteRoundCard voteRound={currentRoom.activeVoteRound} />
-        </SectionCard>
-      ) : null}
-
-      {canSubmitNightAction || canSubmitVote ? (
-        <Button
-          label={currentRoom.phase === 'DAY_VOTING' ? 'Submit vote' : 'Submit action'}
-          onPress={() => void sendAction()}
-          disabled={currentRoom.phase === 'NIGHT_ACTIONS' ? !selectedAction : !selectedTarget}
-        />
-      ) : null}
-    </Screen>
+    </View>
   );
 }
-
-const styles = StyleSheet.create({
-  title: {
-    color: palette.ink,
-    fontSize: 22,
-    fontWeight: '700',
-  },
-  meta: {
-    color: palette.ink,
-    fontSize: 15,
-  },
-  privateInfo: {
-    color: palette.blue,
-    lineHeight: 20,
-  },
-  timerLabel: {
-    color: palette.muted,
-    fontSize: 14,
-    textTransform: 'uppercase',
-  },
-  timerValue: {
-    color: palette.ink,
-    fontSize: 42,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  timerValueExpired: {
-    color: palette.danger,
-  },
-  timerExpired: {
-    color: palette.danger,
-    fontSize: 14,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  mafiaPlayerCard: {
-    backgroundColor: '#f2cdca',
-    borderColor: palette.danger,
-  },
-  townPlayerCard: {
-    backgroundColor: '#d7ebe3',
-    borderColor: palette.mint,
-  },
-  queuePlayerCard: {
-    backgroundColor: palette.softBlue,
-    borderColor: palette.blue,
-  },
-});

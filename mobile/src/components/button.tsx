@@ -14,32 +14,41 @@ export function Button({ label, onPress, disabled = false, tone = 'primary' }: B
   const styles = useThemedStyles((colors) => ({
     base: {
       alignItems: 'center',
-      borderRadius: 14,
+      borderRadius: 18,
       justifyContent: 'center',
-      minHeight: 48,
-      paddingHorizontal: 16,
-      paddingVertical: 12,
+      minHeight: 52,
+      paddingHorizontal: 18,
+      paddingVertical: 14,
+      shadowColor: colors.overlay,
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.12,
+      shadowRadius: 16,
+      elevation: 2,
     },
     primary: {
       backgroundColor: colors.primary,
     },
     secondary: {
       backgroundColor: colors.surfaceRaised,
-      borderColor: colors.primary,
+      borderColor: colors.border,
       borderWidth: 1,
     },
     disabled: {
-      opacity: 0.55,
+      opacity: 0.48,
+      shadowOpacity: 0,
+      elevation: 0,
     },
     label: {
-      fontSize: 15,
+      fontSize: 14,
       fontWeight: '700',
+      letterSpacing: 0.3,
+      textTransform: 'uppercase',
     },
     primaryLabel: {
       color: colors.textOnPrimary,
     },
     secondaryLabel: {
-      color: colors.primary,
+      color: colors.text,
     },
   }));
 

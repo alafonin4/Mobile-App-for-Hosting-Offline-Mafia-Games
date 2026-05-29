@@ -1,7 +1,8 @@
 export type NotificationType =
   | 'FRIEND_REQUEST_RECEIVED'
   | 'FRIEND_REQUEST_ACCEPTED'
-  | 'GAME_INVITE';
+  | 'GAME_INVITE'
+  | 'CLUB_INVITE';
 
 export type AppNotification = {
   id: number;
@@ -15,4 +16,6 @@ export type AppNotification = {
   relatedUserName: string | null;
   roomId: string | null;
   roomName: string | null;
+  clubId: number | null;
+  clubName: string | null;
 };

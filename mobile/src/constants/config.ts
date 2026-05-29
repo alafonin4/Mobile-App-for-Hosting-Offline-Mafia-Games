@@ -3,6 +3,7 @@ export const STORAGE_KEYS = {
   refreshToken: 'mafia.refreshToken',
   userId: 'mafia.userId',
   themeMode: 'mafia.themeMode',
+  language: 'mafia.language',
 } as const;
 
 export const TAB_TITLES = {

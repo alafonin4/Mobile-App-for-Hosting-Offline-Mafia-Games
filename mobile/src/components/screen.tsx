@@ -19,8 +19,8 @@ export function Screen({
       flex: 1,
     },
     content: {
-      gap: 16,
-      padding: 16,
+      gap: 18,
+      padding: 18,
     },
   }));
 

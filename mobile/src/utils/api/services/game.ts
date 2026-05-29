@@ -3,6 +3,7 @@ import type { GameRoom, NightActionInput, RoleCatalogItem, RoleSlot } from '../t
 
 type CreateRoomInput = {
   name: string;
+  clubId?: number | null;
   roles: RoleSlot[];
 };
 

@@ -6,6 +6,7 @@ import { Button } from '@/components/button';
 import { SectionCard } from '@/components/section-card';
 import { palette } from '@/constants/theme';
 import { type RoleCatalogItem } from '@/utils/api';
+import { useLocalization } from '@/utils/localization';
 
 type RolePreferencePickerModalProps = {
   visible: boolean;
@@ -26,6 +27,7 @@ export function RolePreferencePickerModal({
   onToggle,
   onClose,
 }: RolePreferencePickerModalProps) {
+  const { t } = useLocalization();
   const selectedSet = new Set(selectedIds);
 
   return (
@@ -34,9 +36,9 @@ export function RolePreferencePickerModal({
         <View style={styles.header}>
           <View style={styles.headerText}>
             <Text style={styles.title}>{title}</Text>
-            <Text style={styles.subtitle}>Choose up to {selectionLimit} roles</Text>
+            <Text style={styles.subtitle}>{t('modal.chooseUpTo').replace('{count}', String(selectionLimit))}</Text>
           </View>
-          <Button label="Done" onPress={onClose} tone="secondary" />
+          <Button label={t('common.done')} onPress={onClose} tone="secondary" />
         </View>
 
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
@@ -47,9 +49,9 @@ export function RolePreferencePickerModal({
               <SectionCard key={item.id}>
                 <Text style={styles.roleName}>{item.name}</Text>
                 <Text style={styles.description}>{item.description}</Text>
-                <Text style={styles.meta}>Faction: {item.faction}</Text>
+                <Text style={styles.meta}>{t('modal.faction')}: {item.faction}</Text>
                 <Button
-                  label={selected ? 'Selected' : 'Select'}
+                  label={selected ? t('common.selectedPrefix') : t('common.select')}
                   onPress={() => onToggle(item)}
                   tone={selected ? 'primary' : 'secondary'}
                   disabled={selectionLimitReached}

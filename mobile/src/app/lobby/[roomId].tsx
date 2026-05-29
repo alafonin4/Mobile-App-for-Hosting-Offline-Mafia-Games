@@ -1,16 +1,17 @@
 import * as Clipboard from 'expo-clipboard';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, RefreshControl, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 
 import { Button } from '@/components/button';
 import { PlayerCard } from '@/components/player-card';
 import { Screen } from '@/components/screen';
 import { SectionCard } from '@/components/section-card';
-import { palette } from '@/constants/theme';
+import { useAppTheme, useThemedStyles } from '@/theme';
 import { type FriendRequest, type GameRoom } from '@/utils/api';
 import { useGameEvents } from '@/utils/game-socket';
+import { useLocalization } from '@/utils/localization';
 import { buildRoomInviteUrl } from '@/utils/room-invite';
 import { useSession } from '@/utils/session';
 
@@ -23,6 +24,88 @@ type LobbyFriend = {
 export default function LobbyScreen() {
   const { roomId } = useLocalSearchParams<{ roomId: string }>();
   const { api, session } = useSession();
+  const { colors } = useAppTheme();
+  const { t } = useLocalization();
+  const styles = useThemedStyles((theme) => ({
+    loader: {
+      alignItems: 'center',
+      flex: 1,
+      justifyContent: 'center',
+    },
+    hero: {
+      backgroundColor: theme.surfaceRaised,
+      borderColor: theme.accent,
+      borderWidth: 1,
+    },
+    eyebrow: {
+      color: theme.accent,
+      fontSize: 12,
+      fontWeight: '700',
+      letterSpacing: 1.4,
+      textTransform: 'uppercase',
+    },
+    title: {
+      color: theme.text,
+      fontSize: 28,
+      fontWeight: '800',
+    },
+    meta: {
+      color: theme.textMuted,
+      fontSize: 14,
+      lineHeight: 21,
+    },
+    overlay: {
+      alignItems: 'center',
+      backgroundColor: theme.overlay,
+      flex: 1,
+      justifyContent: 'center',
+      padding: 24,
+    },
+    qrCard: {
+      alignItems: 'center',
+      backgroundColor: theme.surface,
+      borderRadius: 28,
+      gap: 16,
+      padding: 24,
+      width: '100%',
+    },
+    inviteCard: {
+      backgroundColor: theme.surface,
+      borderRadius: 28,
+      gap: 16,
+      maxHeight: '80%',
+      padding: 24,
+      width: '100%',
+    },
+    inviteRow: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: 12,
+      justifyContent: 'space-between',
+    },
+    inviteTextWrap: {
+      flex: 1,
+      gap: 4,
+    },
+    inviteTitle: {
+      color: theme.text,
+      fontSize: 15,
+      fontWeight: '700',
+    },
+    caption: {
+      color: theme.textMuted,
+      fontSize: 13,
+      lineHeight: 20,
+      textAlign: 'center',
+    },
+    sentLabel: {
+      color: theme.success,
+      fontSize: 12,
+      fontWeight: '700',
+      letterSpacing: 0.7,
+      textTransform: 'uppercase',
+    },
+  }));
   const [room, setRoom] = useState<GameRoom | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -39,11 +122,11 @@ export default function LobbyScreen() {
       setLoading(true);
       setRoom(await api.getRoom(roomId));
     } catch (error) {
-      Alert.alert('Error', error instanceof Error ? error.message : 'Cannot load room');
+      Alert.alert(t('common.error'), error instanceof Error ? error.message : t('lobby.cannotLoadRoom'));
     } finally {
       setLoading(false);
     }
-  }, [api, roomId]);
+  }, [api, roomId, t]);
 
   useEffect(() => {
     void loadRoom();
@@ -59,7 +142,7 @@ export default function LobbyScreen() {
 
   useEffect(() => {
     if (room && room.phase !== 'LOBBY') {
-      router.replace(`/game/${room.roomId}`);
+      router.replace(`/game/${room.roomId}` as never);
     }
   }, [room]);
 
@@ -69,11 +152,11 @@ export default function LobbyScreen() {
       const relations = await api.getFriends();
       setFriends(mapFriends(relations, session.userId));
     } catch (error) {
-      Alert.alert('Error', error instanceof Error ? error.message : 'Cannot load friends');
+      Alert.alert(t('common.error'), error instanceof Error ? error.message : t('lobby.cannotLoadFriends'));
     } finally {
       setInviteLoading(false);
     }
-  }, [api, session.userId]);
+  }, [api, session.userId, t]);
 
   useEffect(() => {
     if (inviteVisible) {
@@ -84,7 +167,9 @@ export default function LobbyScreen() {
   if (loading || !room) {
     return (
       <Screen>
-        <ActivityIndicator color={palette.blue} size="large" />
+        <View style={styles.loader}>
+          <ActivityIndicator color={colors.primary} size="large" />
+        </View>
       </Screen>
     );
   }
@@ -103,47 +188,48 @@ export default function LobbyScreen() {
             setRefreshing(true);
             void loadRoom().finally(() => setRefreshing(false));
           }}
-          tintColor={palette.blue}
+          tintColor={colors.primary}
         />
       }
     >
-      <SectionCard>
+      <SectionCard style={styles.hero}>
+        <Text style={styles.eyebrow}>{t('lobby.eyebrow')}</Text>
         <Text style={styles.title}>{room.name}</Text>
-        <Text style={styles.meta}>Room ID: {room.roomId}</Text>
+        <Text style={styles.meta}>{t('lobby.roomId')} {room.roomId}</Text>
         <Text style={styles.meta}>
-          Players: {room.players.length}/{room.configuredRoles.length}
+          {t('lobby.seatsFilled')
+            .replace('{filled}', String(room.players.length))
+            .replace('{total}', String(room.configuredRoles.length))}
         </Text>
-        <Button label="Copy room ID" onPress={() => void Clipboard.setStringAsync(room.roomId)} />
-        <Button label="Copy invite link" tone="secondary" onPress={() => void Clipboard.setStringAsync(inviteUrl)} />
-        <Button label="Show QR code" tone="secondary" onPress={() => setQrVisible(true)} />
-        {isHost ? (
-          <Button label="Invite" tone="secondary" onPress={() => setInviteVisible(true)} />
-        ) : null}
+        <Button label={t('lobby.copyRoomId')} onPress={() => void Clipboard.setStringAsync(room.roomId)} />
+        <Button label={t('lobby.copyInvite')} tone="secondary" onPress={() => void Clipboard.setStringAsync(inviteUrl)} />
+        <Button label={t('lobby.showQr')} tone="secondary" onPress={() => setQrVisible(true)} />
+        {isHost ? <Button label={t('lobby.inviteMembers')} tone="secondary" onPress={() => setInviteVisible(true)} /> : null}
       </SectionCard>
 
       <SectionCard>
-        <Text style={styles.title}>Players</Text>
+        <Text style={styles.title}>{t('lobby.guestList')}</Text>
         {room.players.map((player) => (
           <PlayerCard
             key={player.userId}
             title={player.email}
-            subtitle={`${player.host ? 'Host' : 'Player'} | ${player.ready ? 'Ready' : 'Not ready'}`}
+            subtitle={`${player.host ? t('common.host') : t('common.guest')} · ${player.ready ? t('common.ready') : t('common.waiting')}`}
             highlight={player.host}
           />
         ))}
       </SectionCard>
 
-      <Button label="Ready / Not ready" onPress={() => void api.toggleReady(room.roomId).then(setRoom)} />
-      {isHost ? <Button label="Start game" tone="secondary" onPress={() => void api.startGame(room.roomId).then(setRoom)} /> : null}
+      <Button label={t('lobby.toggleReady')} onPress={() => void api.toggleReady(room.roomId).then(setRoom)} />
+      {isHost ? <Button label={t('lobby.beginGame')} tone="secondary" onPress={() => void api.startGame(room.roomId).then(setRoom)} /> : null}
 
       <Modal visible={qrVisible} transparent animationType="fade">
         <View style={styles.overlay}>
           <View style={styles.qrCard}>
-            <Text style={styles.title}>Room QR</Text>
+            <Text style={styles.title}>{t('lobby.roomInvitation')}</Text>
             <QRCode value={inviteUrl} size={220} />
-            <Text style={styles.caption}>Scan with the Mafia Mobile app or your phone camera.</Text>
+            <Text style={styles.caption}>{t('lobby.qrCaption')}</Text>
             <Text style={styles.caption}>{room.roomId}</Text>
-            <Button label="Close" tone="secondary" onPress={() => setQrVisible(false)} />
+            <Button label={t('common.close')} tone="secondary" onPress={() => setQrVisible(false)} />
           </View>
         </View>
       </Modal>
@@ -151,9 +237,9 @@ export default function LobbyScreen() {
       <Modal visible={inviteVisible} transparent animationType="fade">
         <View style={styles.overlay}>
           <View style={styles.inviteCard}>
-            <Text style={styles.title}>Invite friends</Text>
+            <Text style={styles.title}>{t('lobby.inviteFromCircle')}</Text>
             {inviteLoading ? (
-              <ActivityIndicator color={palette.blue} />
+              <ActivityIndicator color={colors.primary} />
             ) : friends.length ? (
               friends.map((friend) => {
                 const inLobby = room.players.some((player) => player.userId === friend.id);
@@ -165,12 +251,12 @@ export default function LobbyScreen() {
                       <Text style={styles.caption}>{friend.subtitle}</Text>
                     </View>
                     {inLobby ? (
-                      <Text style={styles.sentLabel}>In lobby</Text>
+                      <Text style={styles.sentLabel}>{t('common.inside')}</Text>
                     ) : invited ? (
-                      <Text style={styles.sentLabel}>Sent</Text>
+                      <Text style={styles.sentLabel}>{t('common.sent')}</Text>
                     ) : (
                       <Button
-                        label="Invite"
+                        label={t('lobby.invite')}
                         tone="secondary"
                         onPress={() => void api.inviteFriendToRoom(room.roomId, friend.id).then(setRoom)}
                       />
@@ -179,9 +265,9 @@ export default function LobbyScreen() {
                 );
               })
             ) : (
-              <Text style={styles.caption}>No approved friends yet.</Text>
+              <Text style={styles.caption}>{t('lobby.noFriends')}</Text>
             )}
-            <Button label="Close" tone="secondary" onPress={() => setInviteVisible(false)} />
+            <Button label={t('common.close')} tone="secondary" onPress={() => setInviteVisible(false)} />
           </View>
         </View>
       </Modal>
@@ -199,63 +285,3 @@ function mapFriends(items: FriendRequest[], currentUserId: number | null) {
     };
   });
 }
-
-const styles = StyleSheet.create({
-  title: {
-    color: palette.ink,
-    fontSize: 22,
-    fontWeight: '700',
-  },
-  meta: {
-    color: palette.ink,
-    fontSize: 15,
-  },
-  overlay: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(17, 32, 49, 0.45)',
-    flex: 1,
-    justifyContent: 'center',
-    padding: 24,
-  },
-  qrCard: {
-    alignItems: 'center',
-    backgroundColor: palette.white,
-    borderRadius: 24,
-    gap: 16,
-    padding: 24,
-    width: '100%',
-  },
-  inviteCard: {
-    backgroundColor: palette.white,
-    borderRadius: 24,
-    gap: 16,
-    maxHeight: '80%',
-    padding: 24,
-    width: '100%',
-  },
-  inviteRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 12,
-    justifyContent: 'space-between',
-  },
-  inviteTextWrap: {
-    flex: 1,
-    gap: 4,
-  },
-  inviteTitle: {
-    color: palette.ink,
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  caption: {
-    color: palette.muted,
-    fontSize: 13,
-    textAlign: 'center',
-  },
-  sentLabel: {
-    color: palette.mint,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-});

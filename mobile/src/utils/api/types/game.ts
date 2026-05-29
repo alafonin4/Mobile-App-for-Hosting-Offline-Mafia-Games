@@ -79,6 +79,8 @@ export type RoomPlayer = {
 export type GameRoom = {
   roomId: string;
   name: string;
+  clubId: number | null;
+  clubName: string | null;
   phase: GamePhase;
   nightNumber: number;
   dayNumber: number;

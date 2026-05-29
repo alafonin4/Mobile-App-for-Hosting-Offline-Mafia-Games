@@ -8,8 +8,10 @@ function isSupportedAvatarValue(value: string) {
   return z.url().safeParse(value).success || /^data:image\/[a-zA-Z0-9.+-]+;base64,/.test(value);
 }
 
+export const nicknameSchema = z.string().trim().min(2, 'Nickname is too short').max(32, 'Nickname is too long');
+
 export const profileSchema = z.object({
-  nickname: z.string().trim().min(2, 'Nickname is too short').max(32),
+  nickname: nicknameSchema,
   avatarUrl: z.string().trim().refine(isSupportedAvatarValue, 'Avatar must be a valid image'),
   favoriteRoleIds: z.array(z.string()).max(3, 'Choose no more than 3 favorite roles'),
   dislikedRoleIds: z.array(z.string()).max(3, 'Choose no more than 3 disliked roles'),

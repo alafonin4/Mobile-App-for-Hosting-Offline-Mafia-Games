@@ -6,11 +6,13 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { NotificationHeaderButton } from '@/components/notification-header-button';
 import { RouteGuard, SessionProvider, useSession } from '@/utils/session';
+import { LocalizationProvider, useLocalization } from '@/utils/localization';
 import { ThemeProvider, useAppTheme, useThemedStyles } from '@/theme';
 
 function RootNavigator() {
   const { loading } = useSession();
   const { colors } = useAppTheme();
+  const { t } = useLocalization();
   const styles = useThemedStyles((theme) => ({
     loader: {
       alignItems: 'center',
@@ -41,11 +43,14 @@ function RootNavigator() {
       >
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="lobby/[roomId]" options={{ title: 'Lobby' }} />
-        <Stack.Screen name="game/[roomId]" options={{ title: 'Game' }} />
-        <Stack.Screen name="history-details/[id]" options={{ title: 'History details' }} />
-        <Stack.Screen name="users/[id]" options={{ title: 'Profile' }} />
-        <Stack.Screen name="notifications" options={{ title: 'Notifications' }} />
+        <Stack.Screen name="lobby/[roomId]" options={{ title: t('nav.lobby') }} />
+        <Stack.Screen name="game/[roomId]" options={{ title: t('nav.game') }} />
+        <Stack.Screen name="aftergame/[roomId]" options={{ title: t('ceremony.eyebrow') }} />
+        <Stack.Screen name="history-details/[id]" options={{ title: t('nav.historyRecord') }} />
+        <Stack.Screen name="dossier/[id]" options={{ title: t('nav.dossier') }} />
+        <Stack.Screen name="clubs/[id]" options={{ title: t('nav.club') }} />
+        <Stack.Screen name="users/[id]" options={{ title: t('nav.user') }} />
+        <Stack.Screen name="notifications" options={{ title: t('nav.notifications') }} />
       </Stack>
     </>
   );
@@ -64,7 +69,9 @@ export default function Layout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider>
         <SessionProvider>
-          <RootNavigator />
+          <LocalizationProvider>
+            <RootNavigator />
+          </LocalizationProvider>
         </SessionProvider>
       </ThemeProvider>
     </GestureHandlerRootView>
