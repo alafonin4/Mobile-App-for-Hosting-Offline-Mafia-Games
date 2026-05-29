@@ -86,8 +86,7 @@ export default function TabsLayout() {
         name="roles"
         options={{
           title: t('tabs.roleGallery'),
-          href: null,
-          tabBarButton: () => null,
+          tabBarIcon: ({ color, size }) => <Ionicons name="eye-outline" size={size} color={color} />,
         }}
       />
 
@@ -95,8 +94,7 @@ export default function TabsLayout() {
         name="clubs"
         options={{
           title: t('tabs.clubs'),
-          href: null,
-          tabBarButton: () => null,
+          tabBarIcon: ({ color, size }) => <Ionicons name="people-outline" size={size} color={color} />,
         }}
       />
     </Tabs>
