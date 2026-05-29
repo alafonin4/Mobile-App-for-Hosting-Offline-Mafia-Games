@@ -57,6 +57,12 @@ public class UserNotification {
     @Column
     private String roomName;
 
+    @Column
+    private Long clubId;
+
+    @Column
+    private String clubName;
+
     public Long getId() {
         return id;
     }
@@ -143,6 +149,22 @@ public class UserNotification {
 
     public void setRoomName(String roomName) {
         this.roomName = roomName;
+    }
+
+    public Long getClubId() {
+        return clubId;
+    }
+
+    public void setClubId(Long clubId) {
+        this.clubId = clubId;
+    }
+
+    public String getClubName() {
+        return clubName;
+    }
+
+    public void setClubName(String clubName) {
+        this.clubName = clubName;
     }
 
     @PrePersist

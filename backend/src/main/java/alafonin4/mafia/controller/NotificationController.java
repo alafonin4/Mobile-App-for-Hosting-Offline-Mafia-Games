@@ -1,6 +1,7 @@
 package alafonin4.mafia.controller;
 
 import alafonin4.mafia.dto.notification.NotificationResponse;
+import alafonin4.mafia.dto.club.ClubDetailResponse;
 import alafonin4.mafia.game.dto.GameRoomResponse;
 import alafonin4.mafia.service.NotificationService;
 import org.springframework.http.ResponseEntity;
@@ -36,5 +37,10 @@ public class NotificationController {
     @PostMapping("/{notificationId}/join-game")
     public ResponseEntity<GameRoomResponse> acceptGameInvite(@PathVariable Long notificationId) {
         return ResponseEntity.ok(notificationService.acceptGameInvite(notificationId));
+    }
+
+    @PostMapping("/{notificationId}/join-club")
+    public ResponseEntity<ClubDetailResponse> acceptClubInvite(@PathVariable Long notificationId) {
+        return ResponseEntity.ok(notificationService.acceptClubInvite(notificationId));
     }
 }

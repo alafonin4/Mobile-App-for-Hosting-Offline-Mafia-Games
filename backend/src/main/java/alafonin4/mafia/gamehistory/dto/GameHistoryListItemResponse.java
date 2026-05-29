@@ -14,6 +14,8 @@ public record GameHistoryListItemResponse(
         LocalDateTime finishedAt,
         int nightNumber,
         int dayNumber,
-        int participantCount
+        int participantCount,
+        Long clubId,
+        String clubName
 ) {
 }

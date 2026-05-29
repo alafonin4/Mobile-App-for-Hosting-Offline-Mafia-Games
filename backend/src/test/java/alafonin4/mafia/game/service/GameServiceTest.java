@@ -55,6 +55,7 @@ class GameServiceTest {
         setCurrentUser(host);
         GameRoomResponse room = gameService.createRoom(new CreateRoomRequest(
                 "mafia-maniac",
+                null,
                 List.of(
                         new RoleSlotRequest(PlayerRole.MANIAC, RoleVariant.MANIAC_MAFIA),
                         new RoleSlotRequest(PlayerRole.NINJA, RoleVariant.DEFAULT),
@@ -108,6 +109,7 @@ class GameServiceTest {
         setCurrentUser(host);
         GameRoomResponse room = gameService.createRoom(new CreateRoomRequest(
                 "bodyguard-room",
+                null,
                 List.of(
                         new RoleSlotRequest(PlayerRole.BODYGUARD, RoleVariant.DEFAULT),
                         new RoleSlotRequest(PlayerRole.PROSTITUTE, RoleVariant.PROSTITUTE_MUTE_AND_VOTE_SHIELD),

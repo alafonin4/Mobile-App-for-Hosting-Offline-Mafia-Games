@@ -11,6 +11,8 @@ public class GameRoom {
     private final UUID id;
     private final String name;
     private final Long hostId;
+    private final Long clubId;
+    private final String clubName;
     private final List<RoomRoleSlot> configuredRoles;
     private final Map<Long, GamePlayer> players;
     private final List<NightAction> pendingNightActions;
@@ -24,10 +26,12 @@ public class GameRoom {
     private WinningTeam winner;
     private Long winnerUserId;
 
-    public GameRoom(UUID id, String name, Long hostId, List<RoomRoleSlot> configuredRoles) {
+    public GameRoom(UUID id, String name, Long hostId, Long clubId, String clubName, List<RoomRoleSlot> configuredRoles) {
         this.id = id;
         this.name = name;
         this.hostId = hostId;
+        this.clubId = clubId;
+        this.clubName = clubName;
         this.configuredRoles = new ArrayList<>(configuredRoles);
         this.players = new LinkedHashMap<>();
         this.pendingNightActions = new ArrayList<>();
@@ -48,6 +52,14 @@ public class GameRoom {
 
     public Long getHostId() {
         return hostId;
+    }
+
+    public Long getClubId() {
+        return clubId;
+    }
+
+    public String getClubName() {
+        return clubName;
     }
 
     public List<RoomRoleSlot> getConfiguredRoles() {

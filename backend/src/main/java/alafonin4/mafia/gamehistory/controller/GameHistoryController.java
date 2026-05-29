@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/games/history")
@@ -28,5 +29,10 @@ public class GameHistoryController {
     @GetMapping("/{id}")
     public ResponseEntity<GameHistoryDetailResponse> getHistoryDetails(@PathVariable Long id) {
         return ResponseEntity.ok(gameHistoryService.getHistoryDetails(id));
+    }
+
+    @GetMapping("/room/{roomId}")
+    public ResponseEntity<GameHistoryDetailResponse> getHistoryDetailsByRoomId(@PathVariable UUID roomId) {
+        return ResponseEntity.ok(gameHistoryService.getHistoryDetailsByRoomId(roomId));
     }
 }

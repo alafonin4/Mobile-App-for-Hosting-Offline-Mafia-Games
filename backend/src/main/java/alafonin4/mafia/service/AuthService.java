@@ -32,12 +32,14 @@ public class AuthService {
         User user = new User();
         user.setEmail(request.email);
         user.setPassword(passwordEncoder.encode(request.password));
-        user.setNickname(defaultNickname(request.email));
+        user.setNickname("player");
 
-        userRepository.save(user);
+        user = userRepository.save(user);
+        user.setNickname(defaultNickname(user.getId()));
+        user = userRepository.save(user);
         log.info("Registered new user with email {}", user.getEmail());
 
-        return login(new LoginRequest(request.email, request.password));
+        return issueTokens(user);
     }
 
     public AuthResponse login(LoginRequest request) {
@@ -52,21 +54,8 @@ public class AuthService {
             throw new IllegalArgumentException("Wrong password");
         }
 
-        String accessToken = jwtService.generateAccessToken(user);
-        String refreshToken = jwtService.generateRefreshToken();
-
-        RefreshToken token = new RefreshToken();
-        token.setToken(refreshToken);
-        token.setUser(user);
-        token.setExpiryDate(LocalDateTime.now().plus(30, ChronoUnit.DAYS));
-
-        refreshTokenRepository.save(token);
+        AuthResponse response = issueTokens(user);
         log.info("User {} logged in successfully", user.getEmail());
-
-        AuthResponse response = new AuthResponse();
-        response.accessToken = accessToken;
-        response.refreshToken = refreshToken;
-        response.userId = user.getId();
 
         return response;
     }
@@ -108,8 +97,25 @@ public class AuthService {
                 }, () -> log.warn("Logout requested with unknown refresh token"));
     }
 
-    private String defaultNickname(String email) {
-        int separatorIndex = email.indexOf('@');
-        return separatorIndex > 0 ? email.substring(0, separatorIndex) : email;
+    private String defaultNickname(Long userId) {
+        return "id" + userId;
+    }
+
+    private AuthResponse issueTokens(User user) {
+        String accessToken = jwtService.generateAccessToken(user);
+        String refreshToken = jwtService.generateRefreshToken();
+
+        RefreshToken token = new RefreshToken();
+        token.setToken(refreshToken);
+        token.setUser(user);
+        token.setExpiryDate(LocalDateTime.now().plus(30, ChronoUnit.DAYS));
+
+        refreshTokenRepository.save(token);
+
+        AuthResponse response = new AuthResponse();
+        response.accessToken = accessToken;
+        response.refreshToken = refreshToken;
+        response.userId = user.getId();
+        return response;
     }
 }

@@ -1,11 +1,14 @@
 package alafonin4.mafia.service;
 
 import alafonin4.mafia.dto.auth.LoginRequest;
+import alafonin4.mafia.dto.auth.RegisterRequest;
+import alafonin4.mafia.dto.auth.AuthResponse;
 import alafonin4.mafia.entity.User;
 import alafonin4.mafia.repository.RefreshTokenRepository;
 import alafonin4.mafia.repository.UserRepository;
 import alafonin4.mafia.security.JwtFilter;
 import jakarta.servlet.ServletException;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -19,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.IOException;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -40,6 +44,9 @@ class AuthServiceTest {
 
     @Autowired
     private JwtFilter jwtFilter;
+
+    @Autowired
+    private EntityManager entityManager;
 
     @Test
     void logoutDeletesRefreshTokenIssuedAtLogin() {
@@ -65,6 +72,17 @@ class AuthServiceTest {
         jwtFilter.doFilter(request, response, filterChain);
 
         assertNull(SecurityContextHolder.getContext().getAuthentication());
+    }
+
+    @Test
+    void registerAssignsIdBasedNickname() {
+        AuthResponse response = authService.register(new RegisterRequest("register@example.com", "secret123"));
+        entityManager.flush();
+        entityManager.clear();
+
+        User registeredUser = userRepository.findById(response.userId).orElseThrow();
+
+        assertEquals("id" + registeredUser.getId(), registeredUser.getNickname());
     }
 
     private User createUser(String email, String password) {

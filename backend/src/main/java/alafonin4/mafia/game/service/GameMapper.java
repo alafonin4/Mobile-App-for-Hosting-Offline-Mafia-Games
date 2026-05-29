@@ -29,6 +29,8 @@ public class GameMapper {
         return new GameRoomResponse(
                 room.getId(),
                 room.getName(),
+                room.getClubId(),
+                room.getClubName(),
                 room.getPhase(),
                 room.getNightNumber(),
                 room.getDayNumber(),

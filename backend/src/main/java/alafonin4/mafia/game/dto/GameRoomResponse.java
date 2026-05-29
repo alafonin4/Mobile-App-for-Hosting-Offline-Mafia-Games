@@ -12,6 +12,8 @@ import java.util.UUID;
 public record GameRoomResponse(
         UUID roomId,
         String name,
+        Long clubId,
+        String clubName,
         GamePhase phase,
         int nightNumber,
         int dayNumber,

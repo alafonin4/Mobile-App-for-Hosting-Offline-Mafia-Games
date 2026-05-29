@@ -16,6 +16,8 @@ public record NotificationResponse(
         Long relatedUserId,
         String relatedUserName,
         UUID roomId,
-        String roomName
+        String roomName,
+        Long clubId,
+        String clubName
 ) {
 }

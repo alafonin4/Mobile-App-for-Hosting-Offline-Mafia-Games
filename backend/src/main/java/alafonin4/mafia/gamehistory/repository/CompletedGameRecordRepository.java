@@ -20,4 +20,6 @@ public interface CompletedGameRecordRepository extends JpaRepository<CompletedGa
             order by game.finishedAt desc
             """)
     List<CompletedGameRecord> findAllForParticipant(@Param("userId") Long userId);
+
+    List<CompletedGameRecord> findAllByClubIdOrderByFinishedAtDesc(Long clubId);
 }

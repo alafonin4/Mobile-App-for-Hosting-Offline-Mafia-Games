@@ -33,6 +33,12 @@ public class CompletedGameRecord {
     @Column(nullable = false)
     private String roomName;
 
+    @Column
+    private Long clubId;
+
+    @Column
+    private String clubName;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private WinningTeam winner;
@@ -83,6 +89,22 @@ public class CompletedGameRecord {
 
     public void setRoomName(String roomName) {
         this.roomName = roomName;
+    }
+
+    public Long getClubId() {
+        return clubId;
+    }
+
+    public void setClubId(Long clubId) {
+        this.clubId = clubId;
+    }
+
+    public String getClubName() {
+        return clubName;
+    }
+
+    public void setClubName(String clubName) {
+        this.clubName = clubName;
     }
 
     public WinningTeam getWinner() {

@@ -32,16 +32,18 @@ public class NotificationService {
     private final GameRoomStore roomStore;
     private final GameMapper gameMapper;
     private final GameEventPublisher eventPublisher;
+    private final ClubService clubService;
 
     public NotificationService(UserNotificationRepository notificationRepository, UserRepository userRepository,
                                FriendRequestRepository friendRequestRepository, GameRoomStore roomStore,
-                               GameMapper gameMapper, GameEventPublisher eventPublisher) {
+                               GameMapper gameMapper, GameEventPublisher eventPublisher, ClubService clubService) {
         this.notificationRepository = notificationRepository;
         this.userRepository = userRepository;
         this.friendRequestRepository = friendRequestRepository;
         this.roomStore = roomStore;
         this.gameMapper = gameMapper;
         this.eventPublisher = eventPublisher;
+        this.clubService = clubService;
     }
 
     public void createFriendRequestReceivedNotification(FriendRequest friendRequest) {
@@ -52,6 +54,8 @@ public class NotificationService {
                 friendRequest.getSender().getNickname() + " sent you a friend request.",
                 friendRequest.getSender().getId(),
                 friendRequest.getSender().getNickname(),
+                null,
+                null,
                 null,
                 null
         );
@@ -65,6 +69,8 @@ public class NotificationService {
                 friendRequest.getReceiver().getNickname() + " accepted your friend request.",
                 friendRequest.getReceiver().getId(),
                 friendRequest.getReceiver().getNickname(),
+                null,
+                null,
                 null,
                 null
         );
@@ -106,7 +112,9 @@ public class NotificationService {
                     host.getId(),
                     host.getNickname(),
                     room.getId(),
-                    room.getName()
+                    room.getName(),
+                    room.getClubId(),
+                    room.getClubName()
             );
             return broadcastRoomState(room, host.getId());
         }
@@ -175,6 +183,11 @@ public class NotificationService {
         }
     }
 
+    @Transactional
+    public alafonin4.mafia.dto.club.ClubDetailResponse acceptClubInvite(Long notificationId) {
+        return clubService.acceptClubInvite(notificationId);
+    }
+
     public List<NotificationResponse> getCurrentUserNotifications() {
         return notificationRepository.findAllByRecipientIdOrderByCreatedAtDesc(currentUser().getId()).stream()
                 .map(this::toResponse)
@@ -195,7 +208,8 @@ public class NotificationService {
     }
 
     private void createNotification(User recipient, UserNotificationType type, String title, String message,
-                                    Long relatedUserId, String relatedUserName, UUID roomId, String roomName) {
+                                    Long relatedUserId, String relatedUserName, UUID roomId, String roomName,
+                                    Long clubId, String clubName) {
         UserNotification notification = new UserNotification();
         notification.setRecipient(recipient);
         notification.setType(type);
@@ -207,6 +221,8 @@ public class NotificationService {
         notification.setRelatedUserName(relatedUserName);
         notification.setRoomId(roomId);
         notification.setRoomName(roomName);
+        notification.setClubId(clubId);
+        notification.setClubName(clubName);
         notificationRepository.save(notification);
     }
 
@@ -222,7 +238,9 @@ public class NotificationService {
                 notification.getRelatedUserId(),
                 notification.getRelatedUserName(),
                 notification.getRoomId(),
-                notification.getRoomName()
+                notification.getRoomName(),
+                notification.getClubId(),
+                notification.getClubName()
         );
     }
 

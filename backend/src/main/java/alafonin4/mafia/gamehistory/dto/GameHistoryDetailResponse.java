@@ -11,11 +11,14 @@ public record GameHistoryDetailResponse(
         Long id,
         UUID roomId,
         String name,
+        Long clubId,
+        String clubName,
         WinningTeam winner,
         Long winnerUserId,
         LocalDateTime finishedAt,
         int nightNumber,
         int dayNumber,
+        GameRecapResponse recap,
         List<GameHistoryPlayerResponse> players,
         List<VoteRoundResponse> voteHistory
 ) {

@@ -35,14 +35,17 @@ public class GameHistoryService {
     private final GameMapper gameMapper;
     private final ObjectMapper objectMapper;
     private final UserRepository userRepository;
+    private final GameInsightsService gameInsightsService;
 
     public GameHistoryService(CompletedGameRecordRepository completedGameRecordRepository, GameRoomStore gameRoomStore,
-                              GameMapper gameMapper, ObjectMapper objectMapper, UserRepository userRepository) {
+                              GameMapper gameMapper, ObjectMapper objectMapper, UserRepository userRepository,
+                              GameInsightsService gameInsightsService) {
         this.completedGameRecordRepository = completedGameRecordRepository;
         this.gameRoomStore = gameRoomStore;
         this.gameMapper = gameMapper;
         this.objectMapper = objectMapper;
         this.userRepository = userRepository;
+        this.gameInsightsService = gameInsightsService;
     }
 
     @Transactional
@@ -83,10 +86,24 @@ public class GameHistoryService {
         return toDetail(record);
     }
 
+    @Transactional
+    public GameHistoryDetailResponse getHistoryDetailsByRoomId(java.util.UUID roomId) {
+        refreshFinishedGameSnapshots();
+        User currentUser = currentUser();
+        CompletedGameRecord record = completedGameRecordRepository.findByRoomId(roomId)
+                .orElseThrow(() -> new IllegalArgumentException("Game history entry not found"));
+        if (!record.getParticipantIds().contains(currentUser.getId())) {
+            throw new IllegalStateException("Current user did not participate in this game");
+        }
+        return toDetail(record);
+    }
+
     private void saveSnapshot(GameRoom room) {
         CompletedGameRecord record = new CompletedGameRecord();
         record.setRoomId(room.getId());
         record.setRoomName(room.getName());
+        record.setClubId(room.getClubId());
+        record.setClubName(room.getClubName());
         record.setWinner(room.getWinner());
         record.setWinnerUserId(room.getWinnerUserId());
         record.setNightNumber(room.getNightNumber());
@@ -138,7 +155,9 @@ public class GameHistoryService {
                 record.getFinishedAt(),
                 record.getNightNumber(),
                 record.getDayNumber(),
-                record.getParticipantCount()
+                record.getParticipantCount(),
+                record.getClubId(),
+                record.getClubName()
         );
     }
 
@@ -147,11 +166,14 @@ public class GameHistoryService {
                 record.getId(),
                 record.getRoomId(),
                 record.getRoomName(),
+                record.getClubId(),
+                record.getClubName(),
                 record.getWinner(),
                 record.getWinnerUserId(),
                 record.getFinishedAt(),
                 record.getNightNumber(),
                 record.getDayNumber(),
+                gameInsightsService.buildRecap(record),
                 readPlayers(record.getPlayersJson()),
                 readVoteHistory(record.getVoteHistoryJson())
         );

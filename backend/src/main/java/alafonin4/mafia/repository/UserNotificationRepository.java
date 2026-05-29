@@ -30,4 +30,14 @@ public interface UserNotificationRepository extends JpaRepository<UserNotificati
               and notification.active = true
             """)
     void deactivateActiveRoomNotifications(@Param("type") UserNotificationType type, @Param("roomId") UUID roomId);
+
+    @Modifying
+    @Query("""
+            update UserNotification notification
+            set notification.active = false
+            where notification.type = :type
+              and notification.clubId = :clubId
+              and notification.active = true
+            """)
+    void deactivateActiveClubNotifications(@Param("type") UserNotificationType type, @Param("clubId") Long clubId);
 }

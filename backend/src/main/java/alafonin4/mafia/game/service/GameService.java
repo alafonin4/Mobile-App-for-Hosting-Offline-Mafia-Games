@@ -1,6 +1,7 @@
 package alafonin4.mafia.game.service;
 
 import alafonin4.mafia.entity.User;
+import alafonin4.mafia.entity.PrivateClub;
 import alafonin4.mafia.game.domain.ActionCode;
 import alafonin4.mafia.game.domain.ActionSlotDefinition;
 import alafonin4.mafia.game.domain.DayRestriction;
@@ -28,6 +29,7 @@ import alafonin4.mafia.game.dto.RoleSlotRequest;
 import alafonin4.mafia.game.dto.VoteRoundResponse;
 import alafonin4.mafia.gamehistory.service.GameHistoryService;
 import alafonin4.mafia.game.store.GameRoomStore;
+import alafonin4.mafia.service.ClubService;
 import alafonin4.mafia.service.NotificationService;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -56,16 +58,18 @@ public class GameService {
     private final GameEventPublisher eventPublisher;
     private final GameHistoryService gameHistoryService;
     private final NotificationService notificationService;
+    private final ClubService clubService;
 
     public GameService(GameRoomStore roomStore, RoleCatalog roleCatalog, GameMapper gameMapper,
                        GameEventPublisher eventPublisher, GameHistoryService gameHistoryService,
-                       NotificationService notificationService) {
+                       NotificationService notificationService, ClubService clubService) {
         this.roomStore = roomStore;
         this.roleCatalog = roleCatalog;
         this.gameMapper = gameMapper;
         this.eventPublisher = eventPublisher;
         this.gameHistoryService = gameHistoryService;
         this.notificationService = notificationService;
+        this.clubService = clubService;
     }
 
     private record KillAttempt(Long targetId, Long actorId, ActionCode actionCode) {
@@ -77,10 +81,13 @@ public class GameService {
     public GameRoomResponse createRoom(CreateRoomRequest request) {
         User currentUser = currentUser();
         List<RoomRoleSlot> configuredRoles = normalizeRoles(request.roles());
+        PrivateClub club = clubService.requireClubForRoomCreation(request.clubId(), currentUser.getId());
         GameRoom room = new GameRoom(
                 UUID.randomUUID(),
                 request.name() == null || request.name().isBlank() ? "Mafia room" : request.name().trim(),
                 currentUser.getId(),
+                club == null ? null : club.getId(),
+                club == null ? null : club.getName(),
                 configuredRoles
         );
         room.getPlayers().put(currentUser.getId(), new GamePlayer(currentUser.getId(), currentUser.getEmail(), true));
@@ -118,7 +125,7 @@ public class GameService {
                 notificationService.invalidateRoomInvites(roomId);
                 roomStore.delete(roomId);
                 eventPublisher.broadcast(roomId, "ROOM_CLOSED", eventPublisher.simplePayload("Host closed the room"));
-                return new GameRoomResponse(roomId, room.getName(), room.getPhase(), room.getNightNumber(), room.getDayNumber(),
+                return new GameRoomResponse(roomId, room.getName(), room.getClubId(), room.getClubName(), room.getPhase(), room.getNightNumber(), room.getDayNumber(),
                         room.getWinner(), room.getWinnerUserId(), List.of(), List.of(), null, null, null, List.of(), false, false, 0, 0, List.of(), List.of(), null);
             }
             room.getPlayers().remove(currentUser.getId());
