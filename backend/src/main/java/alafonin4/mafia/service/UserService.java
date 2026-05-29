@@ -1,17 +1,21 @@
 package alafonin4.mafia.service;
 
 import alafonin4.mafia.dto.user.FriendRelation;
+import alafonin4.mafia.dto.user.NicknameAvailabilityResponse;
+import alafonin4.mafia.dto.user.PlayerDossierResponse;
 import alafonin4.mafia.dto.user.RatingEntryResponse;
 import alafonin4.mafia.dto.user.RatingResponse;
 import alafonin4.mafia.dto.user.UserRequest;
 import alafonin4.mafia.dto.user.UserProfileResponse;
 import alafonin4.mafia.dto.user.UserResponse;
+import alafonin4.mafia.dto.user.UserLanguage;
 import alafonin4.mafia.dto.user.UserSearchResponse;
 import alafonin4.mafia.dto.user.UserSummaryResponse;
 import alafonin4.mafia.entity.FriendRequest;
 import alafonin4.mafia.entity.FriendRequestStatus;
 import alafonin4.mafia.entity.User;
 import alafonin4.mafia.game.service.GameRoleCatalogService;
+import alafonin4.mafia.gamehistory.service.GameInsightsService;
 import alafonin4.mafia.gamehistory.service.GameHistoryService;
 import alafonin4.mafia.repository.FriendRequestRepository;
 import alafonin4.mafia.repository.UserRepository;
@@ -28,9 +32,13 @@ import java.util.Set;
 @Service
 @RequiredArgsConstructor
 public class UserService {
+    private static final int MIN_NICKNAME_LENGTH = 2;
+    private static final int MAX_NICKNAME_LENGTH = 32;
+
     private final UserRepository userRepository;
     private final FriendRequestRepository friendRequestRepository;
     private final GameHistoryService gameHistoryService;
+    private final GameInsightsService gameInsightsService;
     private final GameRoleCatalogService roleCatalogService;
 
     public UserResponse getCurrentUser() {
@@ -47,13 +55,53 @@ public class UserService {
         return toUserProfileResponse(candidate, relationInfo);
     }
 
+    public PlayerDossierResponse getCurrentUserDossier() {
+        gameHistoryService.refreshFinishedGameSnapshots();
+        User currentUser = currentUser();
+        return gameInsightsService.buildDossier(currentUser, FriendRelation.SELF);
+    }
+
+    public PlayerDossierResponse getUserDossier(long userId) {
+        gameHistoryService.refreshFinishedGameSnapshots();
+        User viewer = currentUser();
+        User candidate = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+        RelationInfo relationInfo = resolveRelation(viewer, candidate);
+        if (relationInfo.relation() != FriendRelation.SELF && relationInfo.relation() != FriendRelation.FRIEND) {
+            throw new IllegalStateException("Player dossier is available only for you and approved friends");
+        }
+        return gameInsightsService.buildDossier(candidate, relationInfo.relation());
+    }
+
+    public NicknameAvailabilityResponse getNicknameAvailability(String nickname) {
+        gameHistoryService.refreshFinishedGameSnapshots();
+        User user = currentUser();
+        String normalizedNickname = normalizeNickname(nickname);
+
+        if (normalizedNickname.equalsIgnoreCase(user.getNickname())) {
+            return new NicknameAvailabilityResponse(normalizedNickname, true, "This is your current nickname");
+        }
+
+        boolean available = !userRepository.existsByNicknameIgnoreCase(normalizedNickname);
+        return new NicknameAvailabilityResponse(
+                normalizedNickname,
+                available,
+                available ? "Nickname is available" : "This nickname is already taken"
+        );
+    }
+
     public UserResponse updateInfoAboutCurrentUser(UserRequest userRequest) {
         gameHistoryService.refreshFinishedGameSnapshots();
         User user = currentUser();
         Set<String> supportedRoleIds = roleCatalogService.supportedRoleIds();
 
-        if (userRequest.nickname() != null && !userRequest.nickname().isBlank()) {
-            user.setNickname(userRequest.nickname().trim());
+        if (userRequest.nickname() != null) {
+            String normalizedNickname = normalizeNickname(userRequest.nickname());
+            if (!normalizedNickname.equalsIgnoreCase(user.getNickname())
+                    && userRepository.existsByNicknameIgnoreCaseAndIdNot(normalizedNickname, user.getId())) {
+                throw new IllegalStateException("This nickname is already taken");
+            }
+            user.setNickname(normalizedNickname);
         }
         user.setAvatarUrl(normalizeAvatarUrl(userRequest.avatarUrl()));
         if (userRequest.favoriteRoleIds() != null) {
@@ -61,6 +109,9 @@ public class UserService {
         }
         if (userRequest.dislikedRoleIds() != null) {
             user.setDislikedRoleIds(normalizePreferredRoles(userRequest.dislikedRoleIds(), supportedRoleIds, "Disliked roles"));
+        }
+        if (userRequest.language() != null) {
+            user.setLanguage(userRequest.language());
         }
         ensureNoRoleOverlap(user.getFavoriteRoleIds(), user.getDislikedRoleIds());
 
@@ -160,6 +211,22 @@ public class UserService {
         return trimmed.isEmpty() ? null : trimmed;
     }
 
+    private String normalizeNickname(String nickname) {
+        if (nickname == null) {
+            throw new IllegalArgumentException("Nickname is required");
+        }
+
+        String trimmed = nickname.trim();
+        if (trimmed.length() < MIN_NICKNAME_LENGTH) {
+            throw new IllegalArgumentException("Nickname is too short");
+        }
+        if (trimmed.length() > MAX_NICKNAME_LENGTH) {
+            throw new IllegalArgumentException("Nickname is too long");
+        }
+
+        return trimmed;
+    }
+
     private UserSummaryResponse toUserSummary(User user) {
         return new UserSummaryResponse(
                 user.getId(),
@@ -180,6 +247,7 @@ public class UserService {
                 user.getAvatarUrl(),
                 List.copyOf(user.getFavoriteRoleIds()),
                 List.copyOf(user.getDislikedRoleIds()),
+                user.getLanguage() == null ? UserLanguage.EN : user.getLanguage(),
                 user.getRating(),
                 user.getGamesPlayed(),
                 user.getWins()
@@ -194,6 +262,7 @@ public class UserService {
                 user.getAvatarUrl(),
                 List.copyOf(user.getFavoriteRoleIds()),
                 List.copyOf(user.getDislikedRoleIds()),
+                user.getLanguage() == null ? UserLanguage.EN : user.getLanguage(),
                 user.getRating(),
                 user.getGamesPlayed(),
                 user.getWins(),

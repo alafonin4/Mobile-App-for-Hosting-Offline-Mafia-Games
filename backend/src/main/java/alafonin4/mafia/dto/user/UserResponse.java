@@ -9,6 +9,7 @@ public record UserResponse(
         String avatarUrl,
         List<String> favoriteRoleIds,
         List<String> dislikedRoleIds,
+        UserLanguage language,
         int rating,
         int gamesPlayed,
         int wins

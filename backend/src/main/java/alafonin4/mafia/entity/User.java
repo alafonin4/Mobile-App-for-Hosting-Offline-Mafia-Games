@@ -1,5 +1,6 @@
 package alafonin4.mafia.entity;
 
+import alafonin4.mafia.dto.user.UserLanguage;
 import jakarta.persistence.*;
 import lombok.Data;
 
@@ -48,6 +49,10 @@ public class User {
     @Column(nullable = false)
     private int wins = 0;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private UserLanguage language = UserLanguage.EN;
+
     @PrePersist
     @PreUpdate
     private void normalizeFields() {
@@ -62,6 +67,9 @@ public class User {
         }
         if (wins < 0) {
             wins = 0;
+        }
+        if (language == null) {
+            language = UserLanguage.EN;
         }
         if (avatarUrl != null && avatarUrl.isBlank()) {
             avatarUrl = null;

@@ -6,6 +6,7 @@ public record UserRequest(
         String nickname,
         String avatarUrl,
         List<String> favoriteRoleIds,
-        List<String> dislikedRoleIds
+        List<String> dislikedRoleIds,
+        UserLanguage language
 ) {
 }

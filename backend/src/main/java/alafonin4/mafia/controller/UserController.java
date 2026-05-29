@@ -1,6 +1,8 @@
 package alafonin4.mafia.controller;
 
 import alafonin4.mafia.dto.user.RatingResponse;
+import alafonin4.mafia.dto.user.NicknameAvailabilityResponse;
+import alafonin4.mafia.dto.user.PlayerDossierResponse;
 import alafonin4.mafia.dto.user.UserRequest;
 import alafonin4.mafia.dto.user.UserProfileResponse;
 import alafonin4.mafia.dto.user.UserResponse;
@@ -24,9 +26,24 @@ public class UserController {
         return userService.getCurrentUser();
     }
 
+    @GetMapping("/users/me/dossier")
+    public PlayerDossierResponse getMyDossier() {
+        return userService.getCurrentUserDossier();
+    }
+
+    @GetMapping("/users/nickname-availability")
+    public ResponseEntity<NicknameAvailabilityResponse> getNicknameAvailability(@RequestParam("nickname") String nickname) {
+        return ResponseEntity.ok(userService.getNicknameAvailability(nickname));
+    }
+
     @GetMapping("/users/{id}")
     public ResponseEntity<UserProfileResponse> getUserProfile(@PathVariable("id") Long userId) {
         return ResponseEntity.ok(userService.getUserProfile(userId));
+    }
+
+    @GetMapping("/users/{id}/dossier")
+    public ResponseEntity<PlayerDossierResponse> getUserDossier(@PathVariable("id") Long userId) {
+        return ResponseEntity.ok(userService.getUserDossier(userId));
     }
 
     @PutMapping("/users/update")
