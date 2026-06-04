@@ -1,56 +1,55 @@
 # Mafia Mobile
 
-Mobile companion app and backend server for hosting offline Mafia games with live room management, role-based gameplay, social features, and match history.
+Premium-style mobile companion app and Spring Boot backend for hosting offline Mafia games with live room state, QR invites, private clubs, player dossiers, match recaps, ratings, and persistent game history.
 
-## Overview
+The product is designed for in-person play: the phone supports the host, synchronizes the table, preserves the aftergame archive, and gives players a more polished identity around recurring sessions.
 
-This project helps players organize and run Mafia games from a phone instead of managing everything manually.  
-It combines:
+## Project At A Glance
 
-- a **React Native / Expo** mobile app for players and hosts;
-- a **Spring Boot** backend for authentication, social features, game state, notifications, and history;
-- **WebSocket-based live updates** for room and game events.
-
-The app is designed for in-person play, where the phone supports the game flow, while the players are physically together.
-
-## What The App Can Do
-
-- Register and log in with token-based authentication
-- Edit profile, avatar, and role preferences
-- Search users and manage friendships
-- Accept, reject, cancel, and remove friend relationships
-- Create Mafia rooms with configurable role composition
-- Join rooms by code / QR flow
-- Invite friends into a lobby
-- Start and manage a live game session
-- Receive real-time game updates over WebSockets
-- Track notifications for friend activity and game invitations
-- View rating tables
-- Browse finished game history and details
-
-## Architecture
+- `mobile/`: Expo React Native client with file-based routing, authenticated API access, QR/deeplink room joining, live game screens, role gallery, dossiers, clubs, history, and profile management.
+- `backend/`: Spring Boot API with authentication, friends, clubs, notifications, game-room lifecycle, WebSocket game events, completed-game history, recaps, and dossier analytics.
+- `PostgreSQL`: main persistence store for users, refresh tokens, friendships, notifications, clubs, memberships, and completed game snapshots.
 
 ```mermaid
 flowchart LR
-    A["Expo Mobile App"] -->|"REST API"| B["Spring Boot Backend"]
-    A -->|"SockJS / STOMP"| C["Realtime Game Events"]
+    A["Expo mobile client"] -->|"REST API"| B["Spring Boot backend"]
+    A -->|"SockJS / STOMP"| C["Game WebSocket endpoint"]
+    C --> B
     B --> D["PostgreSQL"]
-    B --> E["Game Room Store / Domain Logic"]
-    B --> F["Auth, Friends, Notifications, History"]
+    B --> E["In-memory active room store"]
+    B --> F["Completed-game analytics"]
 ```
+
+## Flagship Features
+
+- Authentication with JWT access tokens and server-side refresh tokens.
+- Player profiles with avatars, rating, language, unique nicknames, and live nickname availability checks.
+- Friends system with incoming, outgoing, approved, rejected, cancelled, and removal flows.
+- Private Clubs for multiple real-life play groups, club invites, club-linked rooms, club members, and club history.
+- Configurable Mafia rooms with role slots, readiness, friend invites, QR/deeplink joining, and host controls.
+- Live game flow with day, voting, night, role actions, private role delivery, discussion queue, and WebSocket synchronization.
+- Role gallery with full-screen carousel cards and matching in-game role reveal cards.
+- Completed game archive with detailed vote history, survivors, and editorial Signature Recaps.
+- Player Dossiers with recent form, role mastery, voting intelligence, table statistics, and frequent tablemates.
+- Notifications for friend requests, game invites, and club invites.
+- Global and friends-only rating views.
+- Request logging with request ids and rolling backend log files.
 
 ## Tech Stack
 
-### Mobile
+**Mobile**
 
-- Expo
-- React Native
+- Expo 55
+- React 19
+- React Native 0.83
 - Expo Router
 - TypeScript
 - React Navigation
+- React Native Reanimated / Worklets
 - SockJS + STOMP
+- Expo Secure Store, Camera, Image Picker, Linking
 
-### Backend
+**Backend**
 
 - Java 17
 - Spring Boot 4
@@ -59,103 +58,68 @@ flowchart LR
 - Spring Data JPA
 - Spring WebSocket
 - PostgreSQL
+- JJWT
 - H2 for tests
 
 ## Repository Structure
 
 ```text
 .
-|-- backend/   # Spring Boot API, game logic, persistence, auth, notifications
-|-- mobile/    # Expo / React Native client
+|-- backend/
+|   |-- src/main/java/alafonin4/mafia/
+|   |-- src/main/resources/application.properties
+|   |-- src/test/java/alafonin4/mafia/
+|   |-- pom.xml
+|   `-- README.md
+|-- mobile/
+|   |-- src/app/
+|   |-- src/components/
+|   |-- src/utils/
+|   |-- app.json
+|   |-- package.json
+|   `-- README.md
 `-- README.md
 ```
 
-## Core Functional Areas
+## Quick Start
 
-### Authentication
+### 1. Start PostgreSQL
 
-- JWT-based login and refresh flow
-- Secure token storage on mobile
-- Protected API access
-
-### Friends And Social
-
-- User search
-- Incoming and outgoing requests
-- Friend approvals and removals
-- Profile viewing for other users
-
-### Game Flow
-
-- Room creation
-- Lobby readiness
-- Friend invitations
-- Day / night / voting phases
-- Role-specific actions
-- Live synchronization between players
-
-### History And Rating
-
-- Persistent finished game snapshots
-- Detailed vote history
-- Global and friends-only rating views
-
-## Getting Started
-
-### 1. Clone the repository
-
-```bash
-git clone <your-repo-url>
-cd gitrepo
-```
-
-### 2. Start PostgreSQL
-
-The backend currently expects a local PostgreSQL database:
-
-- database: `mafia`
-- host: `localhost`
-- port: `5432`
-
-Current backend config is stored in `backend/src/main/resources/application.properties`.
-
-If needed, create the database first:
+Create a database for local development:
 
 ```sql
 CREATE DATABASE mafia;
 ```
 
-### 3. Run the backend
+The backend reads database settings from environment variables:
 
-Requirements:
+```bash
+SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/mafia
+SPRING_DATASOURCE_USERNAME=<your_username>
+SPRING_DATASOURCE_PASSWORD=<your_password>
+PORT=8080
+```
 
-- Java 17
-- Maven
-- PostgreSQL
-
-Commands:
+### 2. Run The Backend
 
 ```bash
 cd backend
 mvn spring-boot:run
 ```
 
-By default the backend starts on:
+The API starts on:
 
 ```text
 http://localhost:8080
 ```
 
-### 4. Run the mobile app
+For a physical phone on the same Wi-Fi network, use the laptop IP address instead of `localhost`, for example:
 
-Requirements:
+```text
+http://192.168.1.20:8080
+```
 
-- Node.js
-- npm
-- Expo CLI tooling
-- Android Studio emulator or Expo Go
-
-Commands:
+### 3. Run The Mobile Client
 
 ```bash
 cd mobile
@@ -163,38 +127,42 @@ npm install
 npx expo start
 ```
 
-Useful alternatives:
+To point the mobile client at a local backend:
 
 ```bash
-npm run android
-npm run web
+EXPO_PUBLIC_API_URL=http://192.168.1.20:8080 npx expo start
 ```
 
-The mobile app targets `http://localhost:8080` by default.  
-You can also override the backend URL with:
+If `EXPO_PUBLIC_API_URL` is not set, the client falls back to the deployed backend configured in `mobile/src/utils/api/base-url.ts`.
+
+## Production / APK Notes
+
+The Android package id is configured as:
+
+```text
+com.alafonin4.mafiaapp
+```
+
+Useful EAS commands:
 
 ```bash
-EXPO_PUBLIC_API_URL=http://<your-ip>:8080
+cd mobile
+eas build --platform android --profile preview
+eas build --platform android --profile production --clear-cache
 ```
 
-## Development Notes
-
-- The mobile client uses Expo Router for file-based navigation.
-- Realtime room/game updates are delivered via SockJS/STOMP.
-- The backend stores users and social data in PostgreSQL.
-- Test runs use an in-memory H2 database.
-- Hibernate schema update is currently enabled for local development.
+The Android config currently allows cleartext traffic so a phone can call a local `http://<laptop-ip>:8080` backend during testing.
 
 ## Testing
 
-### Backend
+Backend:
 
 ```bash
 cd backend
 mvn test
 ```
 
-### Mobile
+Mobile:
 
 ```bash
 cd mobile
@@ -202,52 +170,34 @@ npx tsc --noEmit
 npm run lint
 ```
 
-## API Highlights
+## Main API Areas
 
-Examples of implemented backend areas:
-
-- `/auth/*`
-- `/users/me`
-- `/users/search`
+- `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`
+- `GET /users/me`, `PUT /users/update`, `GET /users/search`
+- `GET /users/me/dossier`, `GET /users/{id}/dossier`
+- `GET /users/nickname-availability`
+- `GET /rating`
 - `/friends/*`
+- `/clubs/*`
 - `/notifications/*`
-- `/rating`
+- `/game/roles/*`
 - `/game/rooms/*`
 - `/games/history/*`
+- `SockJS / STOMP /ws-game`
 
-## Current Project Status
+## Documentation
 
-This repository already contains a working end-to-end prototype with:
+- Mobile client details: [mobile/README.md](mobile/README.md)
+- Backend details: [backend/README.md](backend/README.md)
 
-- authentication;
-- profile editing;
-- friends and notifications;
-- room and game lifecycle;
-- realtime updates;
-- rating and history screens.
+## Development Notes
 
-It is well suited for coursework, demos, and further iteration.
+- Active game rooms are kept in an in-memory room store. Completed games are persisted as snapshots for history and analytics.
+- Dossiers and recaps are calculated from existing completed-game snapshots rather than separate analytics tables.
+- Hibernate `ddl-auto=update` is enabled for local development convenience.
+- Backend logs are written to `backend/logs/mafia-backend.log`.
+- Before using this as a public production service, externalize the JWT signing secret and review production database, CORS, and deployment settings.
 
-## Suggested Future Improvements
+## Project Status
 
-- Move database credentials and secrets to environment variables
-- Add Docker / docker-compose setup
-- Add CI checks for backend and mobile
-- Add screenshots / demo GIFs to the README
-- Add Swagger / OpenAPI documentation
-- Expand automated frontend testing
-
-## Screens To Highlight In Future README Updates
-
-If you want to make the repository even more attractive on GitHub later, the next best addition would be:
-
-- login / registration
-- lobby screen
-- active game screen
-- friends screen
-- notifications screen
-- rating screen
-
-## Author
-
-Course project for an offline Mafia game hosting platform.
+The repository contains a working end-to-end course project with a richer product layer already in place: social graph, clubs, live rooms, gameplay, history, analytics, and premium-feeling mobile surfaces. It is ready for demo builds, coursework defense, and further iteration.
