@@ -3,13 +3,13 @@ package alafonin4.mafia.game.ws;
 import alafonin4.mafia.entity.User;
 import alafonin4.mafia.repository.UserRepository;
 import alafonin4.mafia.security.JwtService;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.server.HandshakeInterceptor;
 
-import java.net.URI;
 import java.util.List;
 import java.util.Map;
 
@@ -39,7 +39,8 @@ public class JwtHandshakeInterceptor implements HandshakeInterceptor {
                 attributes.put("principalName", String.valueOf(user.getId()));
             }
         } catch (RuntimeException ignored) {
-            // Public room events may still be consumed without a private principal.
+            response.setStatusCode(HttpStatus.UNAUTHORIZED);
+            return false;
         }
         return true;
     }
@@ -54,17 +55,6 @@ public class JwtHandshakeInterceptor implements HandshakeInterceptor {
             String header = headers.get(0);
             if (header != null && header.startsWith("Bearer ")) {
                 return header.substring(7);
-            }
-        }
-        URI uri = request.getURI();
-        String query = uri.getQuery();
-        if (query == null || query.isBlank()) {
-            return null;
-        }
-        for (String part : query.split("&")) {
-            String[] keyValue = part.split("=", 2);
-            if (keyValue.length == 2 && keyValue[0].equals("access_token")) {
-                return keyValue[1];
             }
         }
         return null;

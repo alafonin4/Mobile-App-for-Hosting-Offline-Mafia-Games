@@ -97,7 +97,9 @@ The backend reads database settings from environment variables:
 SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/mafia
 SPRING_DATASOURCE_USERNAME=<your_username>
 SPRING_DATASOURCE_PASSWORD=<your_password>
+JWT_SECRET=<at_least_32_bytes_random_secret>
 PORT=8080
+REFRESH_TOKEN_GAME_GRACE_HOURS=12
 ```
 
 ### 2. Run The Backend
@@ -151,7 +153,7 @@ eas build --platform android --profile preview
 eas build --platform android --profile production --clear-cache
 ```
 
-The Android config currently allows cleartext traffic so a phone can call a local `http://<laptop-ip>:8080` backend during testing.
+Production Android builds should use HTTPS. Cleartext HTTP traffic is disabled in the app config, so local physical-device testing over plain HTTP should use Expo development tooling or a temporary local build configuration.
 
 ## Testing
 
@@ -196,7 +198,7 @@ npm run lint
 - Dossiers and recaps are calculated from existing completed-game snapshots rather than separate analytics tables.
 - Hibernate `ddl-auto=update` is enabled for local development convenience.
 - Backend logs are written to `backend/logs/mafia-backend.log`.
-- Before using this as a public production service, externalize the JWT signing secret and review production database, CORS, and deployment settings.
+- JWT signing uses `JWT_SECRET`; keep it out of the repository and rotate it if it is ever exposed.
 
 ## Project Status
 

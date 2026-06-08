@@ -103,6 +103,7 @@ public class GameService {
             if (room.getPlayers().containsKey(currentUser.getId())) {
                 return gameMapper.toRoomResponse(room, currentUser.getId(), requiredNightActionCount(room));
             }
+            clubService.requireActiveClubMembership(room.getClubId(), currentUser.getId());
             if (room.getPlayers().size() >= room.getConfiguredRoles().size() + 1) {
                 throw new IllegalStateException("Room is already full");
             }
@@ -111,6 +112,18 @@ public class GameService {
             notificationService.deactivateInviteForRecipient(roomId, currentUser.getId());
             return broadcastRoomState(room, currentUser.getId());
         }
+    }
+
+    public Optional<GameRoomResponse> getCurrentActiveRoom() {
+        User currentUser = currentUser();
+        return roomStore.findAll().values().stream()
+                .filter(room -> room.getPhase() != GamePhase.FINISHED)
+                .filter(room -> room.getPlayers().containsKey(currentUser.getId()))
+                .sorted(Comparator
+                        .comparing((GameRoom room) -> room.getPhase() == GamePhase.LOBBY)
+                        .thenComparing(GameRoom::getId))
+                .findFirst()
+                .map(room -> gameMapper.toRoomResponse(room, currentUser.getId(), requiredNightActionCount(room)));
     }
 
     public GameRoomResponse leaveRoom(UUID roomId) {
@@ -692,7 +705,7 @@ public class GameService {
 
     private GameRoomResponse broadcastRoomState(GameRoom room, Long viewerId) {
         GameRoomResponse response = gameMapper.toRoomResponse(room, viewerId, requiredNightActionCount(room));
-        eventPublisher.broadcastRoomState(room.getId(), response);
+        eventPublisher.broadcastRoomState(room.getId(), gameMapper.toRoomResponse(room, null, requiredNightActionCount(room)));
         return response;
     }
 

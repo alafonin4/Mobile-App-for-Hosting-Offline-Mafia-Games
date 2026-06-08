@@ -4,6 +4,14 @@ import alafonin4.mafia.dto.auth.LoginRequest;
 import alafonin4.mafia.dto.auth.RegisterRequest;
 import alafonin4.mafia.dto.auth.AuthResponse;
 import alafonin4.mafia.entity.User;
+import alafonin4.mafia.game.domain.GamePhase;
+import alafonin4.mafia.game.domain.GamePlayer;
+import alafonin4.mafia.game.domain.GameRoom;
+import alafonin4.mafia.game.domain.PlayerRole;
+import alafonin4.mafia.game.domain.RoleVariant;
+import alafonin4.mafia.game.domain.RoomRoleSlot;
+import alafonin4.mafia.game.store.GameRoomStore;
+import alafonin4.mafia.entity.RefreshToken;
 import alafonin4.mafia.repository.RefreshTokenRepository;
 import alafonin4.mafia.repository.UserRepository;
 import alafonin4.mafia.security.JwtFilter;
@@ -20,10 +28,14 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest
@@ -48,16 +60,54 @@ class AuthServiceTest {
     @Autowired
     private EntityManager entityManager;
 
+    @Autowired
+    private GameRoomStore roomStore;
+
     @Test
     void logoutDeletesRefreshTokenIssuedAtLogin() {
         User user = createUser("logout@example.com", "secret123");
         String refreshToken = authService.login(new LoginRequest(user.getEmail(), "secret123")).refreshToken;
 
-        assertTrue(refreshTokenRepository.findByToken(refreshToken).isPresent());
+        assertEquals(1, refreshTokenRepository.count());
+        assertFalse(refreshTokenRepository.findAll().get(0).getTokenHash().equals(refreshToken));
 
         authService.logout(refreshToken);
 
-        assertFalse(refreshTokenRepository.findByToken(refreshToken).isPresent());
+        assertEquals(0, refreshTokenRepository.count());
+    }
+
+    @Test
+    void refreshRotatesStoredRefreshToken() {
+        User user = createUser("refresh-rotation@example.com", "secret123");
+        String refreshToken = authService.login(new LoginRequest(user.getEmail(), "secret123")).refreshToken;
+
+        AuthResponse rotated = authService.refresh(refreshToken);
+
+        assertFalse(refreshToken.equals(rotated.refreshToken));
+        assertEquals(1, refreshTokenRepository.count());
+    }
+
+    @Test
+    void expiredRefreshIsRejectedWithoutActiveGame() {
+        User user = createUser("expired-refresh@example.com", "secret123");
+        String refreshToken = authService.login(new LoginRequest(user.getEmail(), "secret123")).refreshToken;
+        expireStoredRefreshToken();
+
+        assertThrows(IllegalArgumentException.class, () -> authService.refresh(refreshToken));
+    }
+
+    @Test
+    void expiredRefreshRotatesWhenUserIsInActiveGame() {
+        User user = createUser("active-game-refresh@example.com", "secret123");
+        String refreshToken = authService.login(new LoginRequest(user.getEmail(), "secret123")).refreshToken;
+        expireStoredRefreshToken();
+        saveActiveRoomFor(user);
+
+        AuthResponse rotated = authService.refresh(refreshToken);
+
+        assertFalse(refreshToken.equals(rotated.refreshToken));
+        assertEquals(user.getId(), rotated.userId);
+        assertEquals(1, refreshTokenRepository.count());
     }
 
     @Test
@@ -91,5 +141,25 @@ class AuthServiceTest {
         user.setPassword(passwordEncoder.encode(password));
         user.setNickname("tester");
         return userRepository.save(user);
+    }
+
+    private void expireStoredRefreshToken() {
+        RefreshToken token = refreshTokenRepository.findAll().get(0);
+        token.setExpiryDate(LocalDateTime.now().minusMinutes(1));
+        refreshTokenRepository.save(token);
+    }
+
+    private void saveActiveRoomFor(User user) {
+        GameRoom room = new GameRoom(
+                UUID.randomUUID(),
+                "active",
+                user.getId(),
+                null,
+                null,
+                List.of(new RoomRoleSlot(PlayerRole.CITIZEN, RoleVariant.DEFAULT))
+        );
+        room.getPlayers().put(user.getId(), new GamePlayer(user.getId(), user.getEmail(), false));
+        room.setPhase(GamePhase.DAY_DISCUSSION);
+        roomStore.save(room);
     }
 }

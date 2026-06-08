@@ -39,6 +39,13 @@ public class GameRoomController {
         return ResponseEntity.ok(gameService.joinRoom(roomId));
     }
 
+    @GetMapping("/current")
+    public ResponseEntity<GameRoomResponse> getCurrentRoom() {
+        return gameService.getCurrentActiveRoom()
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.noContent().build());
+    }
+
     @PostMapping("/{roomId}/invite/{friendId}")
     public ResponseEntity<GameRoomResponse> inviteFriend(@PathVariable UUID roomId, @PathVariable Long friendId) {
         return ResponseEntity.ok(notificationService.inviteFriendToRoom(roomId, friendId));

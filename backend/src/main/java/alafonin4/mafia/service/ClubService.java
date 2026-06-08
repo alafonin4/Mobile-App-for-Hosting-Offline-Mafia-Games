@@ -170,6 +170,12 @@ public class ClubService {
         return requireActiveMembership(clubId, userId).getClub();
     }
 
+    public void requireActiveClubMembership(Long clubId, Long userId) {
+        if (clubId != null) {
+            requireActiveMembership(clubId, userId);
+        }
+    }
+
     private void ensureFriendship(User currentUser, User invitedUser) {
         boolean isFriend = friendRequestRepository.findAllBetweenUsers(currentUser, invitedUser).stream()
                 .anyMatch(request -> request.getStatus() == FriendRequestStatus.ACCEPTED);

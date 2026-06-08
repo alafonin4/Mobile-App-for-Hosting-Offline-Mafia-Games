@@ -14,7 +14,8 @@ public class RefreshToken {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private String token;
+    @Column(unique = true, length = 128)
+    private String tokenHash;
 
     private LocalDateTime expiryDate;
 

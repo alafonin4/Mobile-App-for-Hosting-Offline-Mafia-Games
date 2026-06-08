@@ -102,6 +102,7 @@ public class NotificationService {
             }
 
             ensureFriendship(host, invitedUser);
+            clubService.requireActiveClubMembership(room.getClubId(), invitedUserId);
 
             room.getInvitedUserIds().add(invitedUserId);
             createNotification(
@@ -161,6 +162,7 @@ public class NotificationService {
                 notificationRepository.save(notification);
                 throw new IllegalStateException("Invitation is no longer active");
             }
+            clubService.requireActiveClubMembership(room.getClubId(), user.getId());
             if (room.getPlayers().containsKey(user.getId())) {
                 notification.setActive(false);
                 notification.setRead(true);
@@ -246,7 +248,7 @@ public class NotificationService {
 
     private GameRoomResponse broadcastRoomState(GameRoom room, Long viewerId) {
         GameRoomResponse response = gameMapper.toRoomResponse(room, viewerId, requiredNightActionCount(room));
-        eventPublisher.broadcastRoomState(room.getId(), response);
+        eventPublisher.broadcastRoomState(room.getId(), gameMapper.toRoomResponse(room, null, requiredNightActionCount(room)));
         return response;
     }
 

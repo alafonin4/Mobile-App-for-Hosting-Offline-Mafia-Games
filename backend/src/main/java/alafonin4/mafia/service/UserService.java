@@ -23,17 +23,26 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
 public class UserService {
     private static final int MIN_NICKNAME_LENGTH = 2;
     private static final int MAX_NICKNAME_LENGTH = 32;
+    private static final int MAX_AVATAR_DATA_URL_LENGTH = 1_000_000;
+    private static final int MAX_AVATAR_REMOTE_URL_LENGTH = 2_048;
+    private static final Pattern AVATAR_DATA_URL_PATTERN = Pattern.compile(
+            "^data:image/(png|jpe?g|webp);base64,[A-Za-z0-9+/=\\r\\n]+$",
+            Pattern.CASE_INSENSITIVE
+    );
 
     private final UserRepository userRepository;
     private final FriendRequestRepository friendRequestRepository;
@@ -159,7 +168,7 @@ public class UserService {
             entries.add(new RatingEntryResponse(
                     rank,
                     user.getId(),
-                    user.getEmail(),
+                    isCurrentUser ? user.getEmail() : null,
                     user.getNickname(),
                     user.getAvatarUrl(),
                     user.getRating(),
@@ -194,7 +203,7 @@ public class UserService {
 
         return new UserSearchResponse(
                 candidate.getId(),
-                candidate.getEmail(),
+                isPrivateRelation(relationInfo.relation()) ? candidate.getEmail() : null,
                 candidate.getNickname(),
                 candidate.getAvatarUrl(),
                 candidate.getRating(),
@@ -208,7 +217,27 @@ public class UserService {
             return null;
         }
         String trimmed = avatarUrl.trim();
-        return trimmed.isEmpty() ? null : trimmed;
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+        if (trimmed.regionMatches(true, 0, "data:", 0, 5)) {
+            if (trimmed.length() > MAX_AVATAR_DATA_URL_LENGTH || !AVATAR_DATA_URL_PATTERN.matcher(trimmed).matches()) {
+                throw new IllegalArgumentException("Avatar image is too large or unsupported");
+            }
+            return trimmed;
+        }
+        if (trimmed.length() > MAX_AVATAR_REMOTE_URL_LENGTH) {
+            throw new IllegalArgumentException("Avatar URL is too long");
+        }
+        try {
+            URI uri = new URI(trimmed);
+            if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null || uri.getHost().isBlank()) {
+                throw new IllegalArgumentException("Avatar URL must use https");
+            }
+            return uri.toString();
+        } catch (URISyntaxException exception) {
+            throw new IllegalArgumentException("Avatar URL is invalid");
+        }
     }
 
     private String normalizeNickname(String nickname) {
@@ -293,6 +322,10 @@ public class UserService {
         }
 
         return new RelationInfo(FriendRelation.NONE, null);
+    }
+
+    private boolean isPrivateRelation(FriendRelation relation) {
+        return relation == FriendRelation.SELF || relation == FriendRelation.FRIEND;
     }
 
     private List<String> normalizePreferredRoles(List<String> roleIds, Set<String> supportedRoleIds, String fieldName) {

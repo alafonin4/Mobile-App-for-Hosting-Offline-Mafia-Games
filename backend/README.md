@@ -20,12 +20,17 @@ Required database environment variables:
 SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/mafia
 SPRING_DATASOURCE_USERNAME=<your_username>
 SPRING_DATASOURCE_PASSWORD=<your_password>
+JWT_SECRET=<at_least_32_bytes_random_secret>
 ```
 
 Optional:
 
 ```bash
 PORT=8080
+JWT_ACCESS_TOKEN_TTL_MINUTES=100
+REFRESH_TOKEN_TTL_DAYS=30
+REFRESH_TOKEN_GAME_GRACE_HOURS=12
+ALLOWED_ORIGINS=http://localhost:*,http://192.168.*:*
 ```
 
 The server binds to `0.0.0.0`, which allows a physical phone on the same Wi-Fi network to reach the backend through the laptop IP address.
@@ -154,8 +159,16 @@ History:
 SockJS/STOMP endpoint:
 
 ```text
-/ws-game?access_token=<jwt>
+/ws-game
 ```
+
+Clients authenticate the STOMP `CONNECT` frame with:
+
+```text
+Authorization: Bearer <jwt>
+```
+
+Subscriptions to `/topic/game/{roomId}` are limited to room participants.
 
 Broker destinations:
 
@@ -209,8 +222,9 @@ The app includes a small startup compatibility migration for the user avatar URL
 
 - Spring Security protects all routes except `/auth/**` and `/ws-game/**`.
 - Access tokens are JWTs.
-- Refresh tokens are persisted server-side.
+- Refresh tokens are persisted server-side as hashes and rotated on refresh.
+- Recently expired refresh tokens may be rotated during an unfinished active game for a limited grace window configured by `REFRESH_TOKEN_GAME_GRACE_HOURS`.
 - Passwords are hashed with BCrypt.
-- WebSocket authentication is handled during the SockJS handshake with the `access_token` query parameter.
+- WebSocket authentication is handled during STOMP `CONNECT`; tokens are not sent in the URL.
 
 Before using the backend as a real public production service, externalize the JWT signing key and review CORS, database credentials, logging retention, and deployment secrets.

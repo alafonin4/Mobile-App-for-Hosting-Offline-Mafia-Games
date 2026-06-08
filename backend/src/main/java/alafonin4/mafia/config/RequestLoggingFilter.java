@@ -36,7 +36,7 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
             filterChain.doFilter(request, response);
         } finally {
             long durationMs = System.currentTimeMillis() - startedAt;
-            String path = request.getRequestURI() + (request.getQueryString() == null ? "" : "?" + request.getQueryString());
+            String path = request.getRequestURI();
             int status = response.getStatus();
 
             if (status >= 500) {
