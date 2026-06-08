@@ -30,6 +30,10 @@ export function joinRoom(request: RequestFn, roomId: string) {
   return request<GameRoom>(`/game/rooms/${roomId}/join`, { method: 'POST' });
 }
 
+export async function getCurrentRoom(request: RequestFn) {
+  return (await request<GameRoom | undefined>('/game/rooms/current')) ?? null;
+}
+
 export function inviteFriendToRoom(request: RequestFn, roomId: string, friendId: number) {
   return request<GameRoom>(`/game/rooms/${roomId}/invite/${friendId}`, { method: 'POST' });
 }

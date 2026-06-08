@@ -1,4 +1,6 @@
 import { type Href, router } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback, useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { Button } from '@/components/button';
@@ -6,10 +8,14 @@ import { BreathingView, Reveal } from '@/components/motion';
 import { Screen } from '@/components/screen';
 import { SectionCard } from '@/components/section-card';
 import { useThemedStyles } from '@/theme';
+import type { GameRoom } from '@/utils/api';
 import { useLocalization } from '@/utils/localization';
+import { useSession } from '@/utils/session';
 
 export default function GamesScreen() {
+  const { api } = useSession();
   const { t } = useLocalization();
+  const [activeRoom, setActiveRoom] = useState<GameRoom | null>(null);
   const styles = useThemedStyles((colors) => ({
     hero: {
       backgroundColor: colors.surfaceRaised,
@@ -46,7 +52,52 @@ export default function GamesScreen() {
       fontSize: 14,
       lineHeight: 21,
     },
+    meta: {
+      color: colors.accent,
+      fontSize: 12,
+      fontWeight: '700',
+      letterSpacing: 1,
+      textTransform: 'uppercase',
+    },
   }));
+
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+
+      async function loadActiveRoom() {
+        try {
+          const room = await api.getCurrentRoom();
+          if (!cancelled) {
+            setActiveRoom(room);
+          }
+        } catch {
+          if (!cancelled) {
+            setActiveRoom(null);
+          }
+        }
+      }
+
+      void loadActiveRoom();
+
+      return () => {
+        cancelled = true;
+      };
+    }, [api])
+  );
+
+  function openActiveRoom() {
+    if (!activeRoom) {
+      return;
+    }
+
+    if (activeRoom.phase === 'LOBBY') {
+      router.push(`/lobby/${activeRoom.roomId}` as never);
+      return;
+    }
+
+    router.push(`/game/${activeRoom.roomId}` as never);
+  }
 
   return (
     <Screen scroll>
@@ -63,6 +114,17 @@ export default function GamesScreen() {
       </BreathingView>
 
       <View style={styles.split}>
+        {activeRoom ? (
+          <Reveal delay={60}>
+            <SectionCard>
+              <Text style={styles.meta}>{activeRoom.phase === 'LOBBY' ? t('games.activeLobby') : t('games.activeGame')}</Text>
+              <Text style={styles.cardTitle}>{activeRoom.name}</Text>
+              <Text style={styles.cardCopy}>{t('games.activeCopy')}</Text>
+              <Button label={t('games.returnToTable')} onPress={openActiveRoom} />
+            </SectionCard>
+          </Reveal>
+        ) : null}
+
         <Reveal delay={90}>
           <SectionCard>
             <Text style={styles.cardTitle}>{t('games.hostTitle')}</Text>

@@ -5,7 +5,7 @@ export type RatingScope = 'all' | 'friends';
 export type RatingEntry = {
   rank: number;
   id: number;
-  email: string;
+  email: string | null;
   nickname: string;
   avatarUrl: string | null;
   rating: number;

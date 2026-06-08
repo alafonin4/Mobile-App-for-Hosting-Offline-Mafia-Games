@@ -292,7 +292,7 @@ export default function GameScreen() {
 
   useGameEvents(roomId ?? '', (event) => {
     if (event.type === 'ROOM_STATE_UPDATED' || event.type === 'GAME_FINISHED') {
-      setRoom(event.payload as GameRoom);
+      setRoom((current) => mergeRoomState(current, event.payload as GameRoom));
       return;
     }
     if (event.type.endsWith('_RESULT') || event.type === 'ROLE_ASSIGNED') {
@@ -780,4 +780,20 @@ export default function GameScreen() {
       ) : null}
     </View>
   );
+}
+
+function mergeRoomState(current: GameRoom | null, incoming: GameRoom) {
+  if (!current || incoming.currentUserRole) {
+    return incoming;
+  }
+
+  return {
+    ...incoming,
+    currentUserRole: current.currentUserRole,
+    currentUserVariant: current.currentUserVariant,
+    currentUserFaction: current.currentUserFaction,
+    currentUserActions: current.currentUserActions,
+    currentUserMuted: incoming.currentUserMuted || current.currentUserMuted,
+    currentUserVoteImmune: incoming.currentUserVoteImmune || current.currentUserVoteImmune,
+  };
 }

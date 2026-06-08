@@ -1,11 +1,22 @@
 import { z } from 'zod';
 
+const MAX_AVATAR_DATA_URL_LENGTH = 1_000_000;
+const MAX_AVATAR_REMOTE_URL_LENGTH = 2048;
+
 function isSupportedAvatarValue(value: string) {
   if (value === '') {
     return true;
   }
 
-  return z.url().safeParse(value).success || /^data:image\/[a-zA-Z0-9.+-]+;base64,/.test(value);
+  if (value.startsWith('data:')) {
+    return value.length <= MAX_AVATAR_DATA_URL_LENGTH && /^data:image\/(png|jpe?g|webp);base64,[A-Za-z0-9+/=\r\n]+$/i.test(value);
+  }
+
+  if (value.length > MAX_AVATAR_REMOTE_URL_LENGTH || !z.url().safeParse(value).success) {
+    return false;
+  }
+
+  return value.toLowerCase().startsWith('https://');
 }
 
 export const nicknameSchema = z.string().trim().min(2, 'Nickname is too short').max(32, 'Nickname is too long');

@@ -50,6 +50,8 @@ EXPO_PUBLIC_API_URL=http://192.168.1.20:8080 npx expo start
 
 Do not use `localhost` in an installed APK when the backend is on the laptop. On the phone, `localhost` means the phone itself.
 
+Production builds should use an HTTPS API URL. The Android production config does not allow cleartext HTTP traffic.
+
 ## App Navigation
 
 The app uses Expo Router and keeps screens under `src/app`.
@@ -119,8 +121,10 @@ mafia-mobile
 Live room and game state updates use SockJS/STOMP:
 
 ```text
-/ws-game?access_token=<jwt>
+/ws-game
 ```
+
+The STOMP connection sends the access token in the `Authorization` connect header.
 
 The client subscribes to:
 
@@ -148,7 +152,7 @@ eas build --platform android --profile production --clear-cache
 
 Notes:
 
-- `app.json` enables Android cleartext traffic for local `http://<ip>:8080` backend testing.
+- Production APKs should call an HTTPS backend. For local physical-device testing with HTTP, use Expo development tooling or a temporary local build configuration.
 - `babel.config.js` includes `react-native-reanimated/plugin`, which is required for Reanimated/Worklets in APK builds.
 - Production APKs need `EXPO_PUBLIC_API_URL` configured at build time if you do not want to use the deployed fallback backend.
 

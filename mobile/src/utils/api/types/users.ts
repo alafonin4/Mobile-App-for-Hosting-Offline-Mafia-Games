@@ -2,7 +2,7 @@ export type UserLanguage = 'EN' | 'RU' | 'JA';
 
 export type UserProfile = {
   id: number;
-  email: string;
+  email: string | null;
   nickname: string;
   avatarUrl: string | null;
   favoriteRoleIds: string[];
@@ -22,7 +22,7 @@ export type RelatedUserProfile = UserProfile & {
 
 export type UserSearchResult = {
   id: number;
-  email: string;
+  email: string | null;
   nickname: string;
   avatarUrl: string | null;
   rating: number;

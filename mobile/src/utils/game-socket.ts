@@ -19,8 +19,10 @@ export function useGameEvents(roomId: string, onEvent: (event: GameEvent) => voi
     }
 
     const client = new Client({
-      webSocketFactory: () =>
-        new SockJS(`${api.baseUrl}/ws-game?access_token=${encodeURIComponent(session.accessToken ?? '')}`),
+      webSocketFactory: () => new SockJS(`${api.baseUrl}/ws-game`),
+      connectHeaders: {
+        Authorization: `Bearer ${session.accessToken}`,
+      },
       reconnectDelay: 5000,
       onConnect: () => {
         client.subscribe(`/topic/game/${roomId}`, (message) => {

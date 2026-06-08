@@ -22,6 +22,7 @@ import {
 } from './services/friends';
 import {
   createRoom,
+  getCurrentRoom,
   getMafiaRoles,
   getRoom,
   getTownRoles,
@@ -202,6 +203,10 @@ export class ApiClient {
 
   joinRoom(roomId: string) {
     return joinRoom(this.request, roomId);
+  }
+
+  getCurrentRoom() {
+    return getCurrentRoom(this.request);
   }
 
   inviteFriendToRoom(roomId: string, friendId: number) {
